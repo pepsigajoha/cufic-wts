@@ -1,0 +1,21 @@
+node_modules
+dist
+dist-ssr
+*.local
+.vite
+.DS_Store
+
+# Excel 임시 잠금 파일 (파일 열려 있을 때 생김 — 절대 커밋 금지)
+~$*
+
+# 비밀 — 절대 커밋 금지. 필요한 키 목록은 .env.example 참고
+.env
+.env.*
+!.env.example
+
+# Supabase CLI 로컬 산출물 (마이그레이션·시드는 커밋한다)
+supabase/.branches
+supabase/.temp
+
+# Claude Code 로컬 설정 (개인 개발환경 — 공유 안 함)
+.claude/settings.local.json
