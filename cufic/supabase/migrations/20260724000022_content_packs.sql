@@ -1,0 +1,161 @@
+-- 콘텐츠 팩 (B, Phase 2): 게임 한 판 콘텐츠 전체를 스냅샷으로 저장하고 통째로 전환한다.
+--
+-- 설계(Approach X): 팩은 JSON 스냅샷(content_packs.data)으로 보관하고, [불러오기]가 그 JSON을
+-- 라이브 테이블(stocks·financials·macro·hints·game_state)에 다시 채운다. 종목 PK·positions/trades
+-- 스키마를 안 건드려서 실서비스에 안전하다.
+--   · 저장: 비파괴적(현재 라이브 콘텐츠를 스냅샷).
+--   · 불러오기: 파괴적(현재 콘텐츠·진행 상태를 지우고 팩으로 교체 → 게임 리셋). 조는 유지(cash=seed).
+
+create table if not exists content_packs (
+  id bigint generated always as identity primary key,
+  name text not null,
+  data jsonb not null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+alter table content_packs enable row level security;
+-- 읽기 정책 없음 → anon 직접 접근 불가. 목록·불러오기는 아래 관리자 RPC로만.
+
+-- ── 현재 라이브 콘텐츠를 팩으로 저장 (p_id 주면 그 팩 덮어쓰기, 없으면 새로 생성)
+create or replace function admin_save_pack(p_admin_secret text, p_name text, p_id bigint default null)
+returns jsonb
+language plpgsql security definer set search_path = public
+as $$
+declare
+  v_data jsonb;
+  v_id bigint;
+begin
+  if not private.verify_admin(p_admin_secret) then
+    return jsonb_build_object('ok', false, 'error', 'unauthorized');
+  end if;
+
+  v_data := jsonb_build_object(
+    'game', (select jsonb_build_object(
+        'total_rounds', total_rounds, 'round_year_map', round_year_map,
+        'default_seed', default_seed, 'final_year', final_year,
+        'round_duration_seconds', round_duration_seconds)
+      from game_state where id = 1),
+    'stocks', (select coalesce(jsonb_agg(jsonb_build_object(
+        'id', id, 'name', name, 'description', description, 'sector', sector,
+        'listed_from_round', listed_from_round, 'prices', prices, 'display_order', display_order)
+      order by display_order), '[]'::jsonb) from stocks),
+    'financials', (select coalesce(jsonb_agg(jsonb_build_object(
+        'stock_id', stock_id, 'year', year, 'revenue', revenue, 'op_income', op_income,
+        'net_income', net_income, 'debt_ratio', debt_ratio, 'roe', roe)), '[]'::jsonb) from financials),
+    'macro', (select coalesce(jsonb_agg(jsonb_build_object(
+        'year', year, 'summary', summary, 'rate', rate, 'gdp', gdp, 'unemployment', unemployment,
+        'fx', fx, 'cpi', cpi, 'oil', oil) order by year), '[]'::jsonb) from macro),
+    'hints', (select coalesce(jsonb_agg(jsonb_build_object(
+        'round', round, 'grade', grade, 'headline', headline, 'impact', impact,
+        'related_stock_ids', related_stock_ids)), '[]'::jsonb) from hints)
+  );
+
+  if p_id is null then
+    insert into content_packs (name, data) values (p_name, v_data) returning id into v_id;
+  else
+    update content_packs set name = p_name, data = v_data, updated_at = now() where id = p_id returning id into v_id;
+    if v_id is null then return jsonb_build_object('ok', false, 'error', 'pack_not_found'); end if;
+  end if;
+  return jsonb_build_object('ok', true, 'id', v_id);
+end;
+$$;
+grant execute on function admin_save_pack(text, text, bigint) to anon, authenticated;
+
+-- ── 팩 목록 (메타데이터만, data 블롭 제외)
+create or replace function admin_list_packs(p_admin_secret text)
+returns jsonb
+language plpgsql security definer set search_path = public
+as $$
+begin
+  if not private.verify_admin(p_admin_secret) then
+    return jsonb_build_object('ok', false, 'error', 'unauthorized');
+  end if;
+  return jsonb_build_object('ok', true, 'packs', coalesce((
+    select jsonb_agg(jsonb_build_object('id', id, 'name', name, 'created_at', created_at, 'updated_at', updated_at) order by id)
+    from content_packs), '[]'::jsonb));
+end;
+$$;
+grant execute on function admin_list_packs(text) to anon, authenticated;
+
+-- ── 팩 불러오기 (파괴적: 콘텐츠·진행 상태 교체 + 게임 리셋. 조는 유지)
+create or replace function admin_load_pack(p_admin_secret text, p_id bigint)
+returns jsonb
+language plpgsql security definer set search_path = public
+as $$
+declare
+  v_data jsonb;
+  v_game jsonb;
+begin
+  if not private.verify_admin(p_admin_secret) then
+    return jsonb_build_object('ok', false, 'error', 'unauthorized');
+  end if;
+  select data into v_data from content_packs where id = p_id;
+  if v_data is null then return jsonb_build_object('ok', false, 'error', 'pack_not_found'); end if;
+  v_game := v_data -> 'game';
+
+  update game_state set is_locked = true where id = 1;
+
+  -- 진행 상태 + 현재 콘텐츠 삭제 (financials가 stocks를 참조하므로 순서 주의)
+  delete from round_snapshots where true;
+  delete from trades where true;
+  delete from positions where true;
+  delete from hint_grants where true;
+  delete from broadcasts where true;
+  delete from hints where true;
+  delete from financials where true;
+  delete from macro where true;
+  delete from stocks where true;
+
+  -- 팩 콘텐츠 적재
+  insert into stocks (id, name, description, sector, listed_from_round, prices, display_order)
+  select s->>'id', s->>'name', coalesce(s->>'description', ''), coalesce(s->>'sector', ''),
+         coalesce((s->>'listed_from_round')::int, 1), s->'prices', coalesce((s->>'display_order')::int, 0)
+  from jsonb_array_elements(v_data->'stocks') s;
+
+  insert into financials (stock_id, year, revenue, op_income, net_income, debt_ratio, roe)
+  select f->>'stock_id', (f->>'year')::int, (f->>'revenue')::bigint, (f->>'op_income')::bigint,
+         (f->>'net_income')::bigint, (f->>'debt_ratio')::numeric, (f->>'roe')::numeric
+  from jsonb_array_elements(v_data->'financials') f;
+
+  insert into macro (year, summary, rate, gdp, unemployment, fx, cpi, oil)
+  select (m->>'year')::int, coalesce(m->>'summary', ''), (m->>'rate')::numeric, (m->>'gdp')::numeric,
+         (m->>'unemployment')::numeric, (m->>'fx')::int, (m->>'cpi')::numeric, (m->>'oil')::int
+  from jsonb_array_elements(v_data->'macro') m;
+
+  insert into hints (round, grade, headline, impact, related_stock_ids)
+  select (h->>'round')::int, h->>'grade', h->>'headline', h->>'impact',
+         coalesce((select array_agg(v) from jsonb_array_elements_text(h->'related_stock_ids') v), '{}')
+  from jsonb_array_elements(v_data->'hints') h;
+
+  -- 게임 설정 교체 + 리셋(시작 전 상태)
+  update game_state set
+    total_rounds = (v_game->>'total_rounds')::int,
+    round_year_map = v_game->'round_year_map',
+    default_seed = (v_game->>'default_seed')::bigint,
+    final_year = (v_game->>'final_year')::int,
+    round_duration_seconds = coalesce((v_game->>'round_duration_seconds')::int, 600),
+    current_round = 0, is_ended = false, is_locked = false, round_ends_at = null
+  where id = 1;
+
+  update teams set cash = seed where true;
+
+  perform emit_signal('game_reset', jsonb_build_object('pack', p_id));
+  return jsonb_build_object('ok', true);
+end;
+$$;
+grant execute on function admin_load_pack(text, bigint) to anon, authenticated;
+
+-- ── 팩 삭제
+create or replace function admin_delete_pack(p_admin_secret text, p_id bigint)
+returns jsonb
+language plpgsql security definer set search_path = public
+as $$
+begin
+  if not private.verify_admin(p_admin_secret) then
+    return jsonb_build_object('ok', false, 'error', 'unauthorized');
+  end if;
+  delete from content_packs where id = p_id;
+  return jsonb_build_object('ok', true);
+end;
+$$;
+grant execute on function admin_delete_pack(text, bigint) to anon, authenticated;

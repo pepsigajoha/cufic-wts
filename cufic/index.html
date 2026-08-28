@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html lang="ko" data-theme="dark">
+  <head>
+    <meta charset="UTF-8" />
+    <!-- 확대 제한 없음(저시력 사용자의 핀치 줌 보장).
+         더블탭 줌은 인터랙티브 요소의 touch-action: manipulation으로 막는다. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Cufic WTS</title>
+    <link rel="icon" type="image/png" href="/favicon.png" />
+    <script>
+      // 저장된 테마를 첫 페인트 전에 적용 (깜빡임 방지)
+      try {
+        var t = localStorage.getItem('wts-theme')
+        if (t === 'light' || t === 'dark') document.documentElement.setAttribute('data-theme', t)
+      } catch (e) {}
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
+</html>

@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>재무제표 모달 목업 — 새 구조</title>
+<style>
+  :root{
+    --bg:#0c1017; --panel:#121826; --panel-2:#161d2e;
+    --line:#232b3d; --line-soft:#1b2233;
+    --text:#e6ebf3; --muted:#8b95a8; --dim:#5c6577;
+    --up:#f0454b; --down:#3d84f5; --down-soft:#152a44;
+    --gold:#e8b45c; --gold-soft:#2e2617;
+    --mono:'SF Mono',ui-monospace,'Roboto Mono',Menlo,Consolas,monospace;
+    --sans:'Pretendard','Apple SD Gothic Neo','Malgun Gothic',system-ui,sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{
+    font-family:var(--sans);background:#05070c;color:var(--text);font-size:14px;
+    display:flex;align-items:center;justify-content:center;min-height:100vh;padding:24px;
+  }
+  .num{font-family:var(--mono);font-feature-settings:"tnum"}
+  .modal{
+    width:min(880px,100%);background:var(--panel);border:1px solid var(--line);
+    border-radius:16px;padding:22px 24px;box-shadow:0 24px 80px rgba(0,0,0,.5);
+  }
+  .m-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px}
+  .m-head h2{font-size:17px;font-weight:800;letter-spacing:-.3px}
+  .m-head .x{color:var(--dim);font-size:20px;cursor:pointer}
+  .intro{
+    background:var(--gold-soft);border:1px solid #4a3d1e;border-radius:10px;
+    padding:10px 14px;font-size:13px;margin-bottom:10px;line-height:1.55;
+  }
+  .intro b{color:var(--gold)}
+  .meta{font-size:11.5px;color:var(--dim);margin-bottom:14px;line-height:1.6}
+  .meta .blue{color:var(--down)}
+
+  .yeartabs{display:flex;gap:4px;margin-bottom:14px}
+  .yeartabs button{
+    padding:6px 14px;font-size:12.5px;font-family:var(--mono);border:1px solid var(--line);
+    background:var(--panel-2);color:var(--dim);border-radius:8px;cursor:pointer;
+  }
+  .yeartabs button.on{background:var(--gold);color:#1a1206;border-color:var(--gold);font-weight:700}
+
+  .sheets{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+  @media (max-width:720px){.sheets{grid-template-columns:1fr}}
+  .sheet{
+    background:var(--panel-2);border:1px solid var(--line);border-radius:12px;padding:14px 16px;
+  }
+  .sheet h3{
+    font-size:13px;font-weight:800;text-align:center;letter-spacing:2px;margin-bottom:2px;
+  }
+  .sheet .sub{font-size:10.5px;color:var(--dim);text-align:center;margin-bottom:10px;font-family:var(--mono)}
+
+  /* 재무상태표 T자형 */
+  .tform{display:grid;grid-template-columns:1fr 1fr;border-top:2px solid var(--text)}
+  .tcol{padding:8px 4px 4px}
+  .tcol.left{border-right:1px solid var(--line)}
+  .row{display:flex;justify-content:space-between;padding:5px 8px;font-size:13px}
+  .row.top{font-weight:800}
+  .row.sub-item{padding-left:22px;color:var(--muted);font-size:12.5px}
+  .row .v{font-weight:inherit}
+  .divider{border-top:1px solid var(--line);margin:6px 0}
+  .row.capital{font-weight:800;color:var(--gold)}
+  .eq-note{
+    grid-column:1/-1;text-align:center;font-size:10.5px;color:var(--dim);
+    padding:8px 0 2px;border-top:1px dashed var(--line);margin-top:6px;
+  }
+
+  /* 손익계산서 단계 차감 */
+  .pl{border-top:2px solid var(--text);padding-top:6px}
+  .pl .row.result{font-weight:800;border-top:1px solid var(--line);margin-top:2px;padding-top:8px}
+  .pl .row.final{color:var(--gold)}
+  .paren{color:var(--down)}
+
+  /* 파생 지표 */
+  .derived{
+    margin-top:14px;display:flex;gap:10px;flex-wrap:wrap;align-items:center;
+    background:var(--panel-2);border:1px solid var(--line);border-radius:10px;padding:10px 14px;
+  }
+  .derived .lbl{font-size:11px;color:var(--dim)}
+  .chip{
+    display:flex;align-items:baseline;gap:6px;padding:4px 10px;border-radius:7px;
+    background:var(--bg);border:1px solid var(--line-soft);font-size:12px;
+  }
+  .chip b{font-family:var(--mono);font-size:13.5px}
+  .chip .q{color:var(--dim);font-size:10px;cursor:pointer}
+
+  /* 용어 설명 */
+  .glossary{
+    margin-top:14px;background:var(--bg);border:1px solid var(--line-soft);
+    border-radius:10px;padding:12px 16px;font-size:12px;line-height:1.9;color:var(--muted);
+  }
+  .glossary h4{font-size:12px;color:var(--gold);margin-bottom:4px}
+  .glossary b{color:var(--text)}
+</style>
+</head>
+<body>
+
+<div class="modal">
+  <div class="m-head">
+    <h2>백만전자 재무제표</h2>
+    <span class="x">✕</span>
+  </div>
+
+  <div class="intro"><b>백만전자</b> — 반도체와 전자부품을 만드는 대형 기술 기업이에요. 경기에 따라 실적이 크게 움직여요.</div>
+  <div class="meta">
+    단위: 억원 · <span class="blue">파란 괄호 (—)</span>는 비용/적자예요 · 2021년까지 공시된 자료예요<br>
+    재무상태표는 "그 시점의 재산 상태", 손익계산서는 "1년 동안의 장사 성적표"예요.
+  </div>
+
+  <div class="yeartabs">
+    <button>2020년</button>
+    <button class="on">2021년</button>
+  </div>
+
+  <div class="sheets">
+    <!-- 재무상태표 -->
+    <div class="sheet">
+      <h3>재무상태표</h3>
+      <div class="sub">2021. 12. 31 기준</div>
+      <div class="tform">
+        <div class="tcol left">
+          <div class="row top"><span>자산</span><span class="v num">100</span></div>
+          <div class="row sub-item"><span>유동자산</span><span class="v num">60</span></div>
+          <div class="row sub-item"><span>비유동자산</span><span class="v num">40</span></div>
+        </div>
+        <div class="tcol">
+          <div class="row top"><span>부채</span><span class="v num">70</span></div>
+          <div class="row sub-item"><span>유동부채</span><span class="v num">20</span></div>
+          <div class="row sub-item"><span>비유동부채</span><span class="v num">50</span></div>
+          <div class="divider"></div>
+          <div class="row capital"><span>자본</span><span class="v num">30</span></div>
+        </div>
+        <div class="eq-note">자산(100) = 부채(70) + 자본(30) — 항상 같아요!</div>
+      </div>
+    </div>
+
+    <!-- 손익계산서 -->
+    <div class="sheet">
+      <h3>손익계산서</h3>
+      <div class="sub">2021. 1. 1 ~ 2021. 12. 31</div>
+      <div class="pl">
+        <div class="row top"><span>매출</span><span class="v num">1,000</span></div>
+        <div class="row sub-item"><span>영업비용</span><span class="v num paren">(600)</span></div>
+        <div class="row result"><span>영업이익</span><span class="v num">400</span></div>
+        <div class="row sub-item"><span>영업외비용</span><span class="v num paren">(100)</span></div>
+        <div class="row result final"><span>당기순이익</span><span class="v num">300</span></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="derived">
+    <span class="lbl">이 표에서 계산한 지표</span>
+    <span class="chip">부채비율 <b class="num">233.3%</b> <span class="q">?</span></span>
+    <span class="chip">ROE <b class="num">1,000.0%</b> <span class="q">?</span></span>
+  </div>
+
+  <div class="glossary">
+    <h4>용어 설명 (누르면 접기/펼치기)</h4>
+    <b>유동자산</b> — 1년 안에 현금으로 바꿀 수 있는 재산이에요 (현금, 팔 물건 등).<br>
+    <b>비유동자산</b> — 오래 쓰는 재산이에요 (공장, 기계, 건물 등).<br>
+    <b>부채</b> — 갚아야 할 빚이에요. 유동(1년 안에)과 비유동(천천히)으로 나눠요.<br>
+    <b>자본</b> — 자산에서 빚을 뺀, 진짜 내 돈이에요. 자산 = 부채 + 자본은 항상 성립해요.<br>
+    <b>영업비용</b> — 장사하는 데 든 돈이에요 (재료비, 인건비 등).<br>
+    <b>영업이익</b> — 본업으로 남긴 이익 / <b>당기순이익</b> — 전부 계산하고 최종적으로 남은 이익이에요.<br>
+    <b>부채비율</b> — 내 돈(자본) 대비 빚이 몇 배인지예요. 낮을수록 안정적이에요.<br>
+    <b>ROE</b> — 내 돈으로 얼마나 잘 벌었는지예요. 높을수록 장사를 잘한 거예요.
+  </div>
+</div>
+
+</body>
+</html>
