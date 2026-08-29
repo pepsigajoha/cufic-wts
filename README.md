@@ -1,8 +1,9 @@
-# CUFIC WTS
+<img width="996" height="512" alt="image" src="https://github.com/user-attachments/assets/130caaab-28dd-46c6-b0f8-c4db1fd4532e" /># CUFIC WTS
 
 청소년 교육용 라운드제 모의투자 WTS(Web Trading System). 학생이 조를 이뤄 참가하고, 강사(관리자)가 라운드(= 1년)를 넘기면 주가가 바뀌며 손익이 난다. 재무제표·시황·힌트를 근거로 다음 해에 오를 종목을 고르는 법을 가르치는 게 목적이다.
 
-![CUFIC WTS 실시간 장중 모의투자 화면](docs/images/wts-trading-preview.png)
+![CUFIC WTS 실시간 장중 모의투자 화면](<img width="996" height="512" alt="image" src="https://github.com/user-attachments/assets/55ab2e06-8c2c-41a5-9823-9ac470f03998" />
+
 
 - 즉시 체결 + 라운드 타이머: 매수·매도를 누르면 서버(`place_order`)가 그 자리에서 체결한다. 단 거래는 관리자가 [타이머 시작]으로 연 동안에만 가능하다(기본 10분, 서버가 마감을 강제).
 - 장중(인트라데이) 시세: 한 라운드는 252 스텝(= 1년치 일별 경로)으로 저장된다. 타이머가 흐르는 동안 진행률에 해당하는 스텝 가격으로 체결되고, 차트도 그 경로를 하루씩 드러낸다. → [장중 가격 시스템](#장중-가격-시스템-2트랙)
@@ -289,9 +290,3 @@ npm test    # Vitest — 현재 174 통과
 ```
 
 순수 계산(차트 좌표·스텝 인덱스·힌트 배분·평가금액·엔진 경로·다운샘플)과 핵심 컴포넌트(Chart·OrderSheet·StockList·QtyStepper·AdminSimulator·FloatingRoundDock)를 커버한다. DB가 필요한 검증은 `scripts/verify-*.mjs` (Management API 경유, 게임 상태 미변경).
-
-```
-
-*참고: 캡처 이미지는 저장소 내 `docs/images/wts-trading-preview.png` 경로에 저장해 두시면 README 상단에 자동 렌더링됩니다.*
-
-```
