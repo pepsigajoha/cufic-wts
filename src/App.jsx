@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { deriveAccount } from './account'
 import { makeActions } from './actions'
-import { buildStocks, loadAll, refetchMine, subscribeSignals, yearOf } from './gameData'
+import { buildStocks, execPriceOf, loadAll, refetchMine, subscribeSignals, yearOf } from './gameData'
+import { roundStepIndex } from './chart'
 import { useTheme } from './theme'
 import {
   loadTeam,
@@ -19,6 +20,9 @@ import Header from './components/Header'
 import StockList from './components/StockList'
 import Chart from './components/Chart'
 import OrderSheet from './components/OrderSheet'
+import ModeTabs from './components/ModeTabs'
+import PayoffDiagram from './components/PayoffDiagram'
+import OptionOrderPanel from './components/OptionOrderPanel'
 import HintModal from './components/HintModal'
 import BroadcastModal from './components/BroadcastModal'
 import EmergencyBroadcast from './components/EmergencyBroadcast'
@@ -54,6 +58,7 @@ function Student({ theme, onToggleTheme }) {
 
   const [game, setGame] = useState(null)
   const [rawStocks, setRawStocks] = useState([])
+  const [pricePaths, setPricePaths] = useState([]) // stock_price_paths 행 — 장중 252일 경로
   const [positions, setPositions] = useState([])
   const [cash, setCash] = useState(0)
   const [trades, setTrades] = useState([])
@@ -72,6 +77,13 @@ function Student({ theme, onToggleTheme }) {
   const [selectedCode, setSelectedCode] = useState(null)
   const [drawings, setDrawings] = useState({})
 
+  // 파생·헷지 — 주식 매매(spot)와 화면을 전환한다. 서버 데이터가 아니라 순수 화면 상태다.
+  const [mode, setMode] = useState('spot') // 'spot' | 'hedge'
+  const [optionsContracts, setOptionsContracts] = useState([])
+  const [myOptionPositions, setMyOptionPositions] = useState([])
+  // OptionOrderPanel(오른쪽)이 지금 보고 있는 계약·프리미엄·수량을 PayoffDiagram(가운데)에 전달.
+  const [hedgeQuote, setHedgeQuote] = useState({ contract: null, premiumPerUnit: 0, qty: 0 })
+
   const [myOpen, setMyOpen] = useState(false)
   const [finOpen, setFinOpen] = useState(false)
   const [rankOpen, setRankOpen] = useState(false)
@@ -89,13 +101,19 @@ function Student({ theme, onToggleTheme }) {
   const [finalOpen, setFinalOpen] = useState(false) // 대회 종료 결과 모달
   const [toasts, pushToast, dismissToast] = useToasts()
 
-  const stocks = useMemo(() => buildStocks(rawStocks, game, positions), [rawStocks, game, positions])
+  const stocks = useMemo(
+    () => buildStocks(rawStocks, game, positions, pricePaths),
+    [rawStocks, game, positions, pricePaths],
+  )
   const selected = useMemo(() => {
     const found = stocks.find((s) => s.code === selectedCode)
     if (found && !found.preListed) return found
     // 상장 예정 종목은 목록에 없으니, 선택도 상장된 종목으로 넘어간다
     return stocks.find((s) => !s.preListed) ?? stocks[0] ?? null
   }, [stocks, selectedCode])
+  // 지금 라운드 진행률 → 스텝(0..251). 선택 종목의 "장중 현재가"(주문 예상금액·토스트용).
+  const liveStep = roundStepIndex(game, nowTs)
+  const selExecPrice = selected ? execPriceOf(selected, liveStep) : 0
   const acct = useMemo(() => deriveAccount(stocks, cash, seed || 0), [stocks, cash, seed])
 
   // 순위 행 (헤더 배지 · 순위 모달이 공유)
@@ -125,6 +143,7 @@ function Student({ theme, onToggleTheme }) {
   // 클라이언트 시계가 어긋나도 표시만 틀릴 뿐, 마감 이후 거래는 서버가 거부한다.
   const endsAt = game?.round_ends_at ? new Date(game.round_ends_at).getTime() : null
   const remainingMs = endsAt ? Math.max(0, endsAt - nowTs) : 0
+  const durationMs = (game?.round_duration_seconds ?? 600) * 1000
   const tradingOpen = started && !locked && remainingMs > 0
   // 타이머 표시 상태: live(카운트다운) / closed(마감) / waiting(대기) / null(숨김)
   const timerState = started && !ended ? (tradingOpen ? 'live' : endsAt ? 'closed' : 'waiting') : null
@@ -172,6 +191,7 @@ function Student({ theme, onToggleTheme }) {
     }
     setGame(r.game)
     setRawStocks(r.rawStocks)
+    setPricePaths(r.pricePaths ?? [])
     setPositions(r.positions)
     setTrades(r.trades)
     setHints(r.hints)
@@ -182,6 +202,8 @@ function Student({ theme, onToggleTheme }) {
     setMacro(r.macro)
     setSeed(r.seed)
     setCash(r.cash)
+    setOptionsContracts(r.optionsContracts ?? [])
+    setMyOptionPositions(r.myOptionPositions ?? [])
     setSelectedCode((c) => c ?? r.rawStocks[0]?.id ?? null)
     return true
   }, [])
@@ -205,8 +227,11 @@ function Student({ theme, onToggleTheme }) {
     setFinancials(r.financials)
     setMacro(r.macro)
     if (r.rawStocks) setRawStocks(r.rawStocks)
+    if (r.pricePaths) setPricePaths(r.pricePaths)
     setGame(r.game)
     setCash(r.cash)
+    setOptionsContracts(r.optionsContracts ?? [])
+    setMyOptionPositions(r.myOptionPositions ?? [])
     return r
   }, [pushToast])
 
@@ -245,18 +270,22 @@ function Student({ theme, onToggleTheme }) {
   useEffect(() => {
     let alive = true
     ;(async () => {
-      getJoinMode().then((m) => alive && setJoinMode(m)) // 로그인 화면 분기용(공개 조회)
-      if (!loadTeam()) {
-        setBooting(false)
-        return
+      try {
+        getJoinMode()
+          .then((m) => alive && setJoinMode(m)) // 로그인 화면 분기용(공개 조회)
+          .catch((e) => console.error('[boot:getJoinMode]', e))
+        if (!loadTeam()) return
+        const r = await restore()
+        if (!alive) return
+        if (r.ok) {
+          setTeam(r.team)
+          await load(r.team)
+        }
+      } catch (e) {
+        console.error('[boot]', e)
+      } finally {
+        if (alive) setBooting(false)
       }
-      const r = await restore()
-      if (!alive) return
-      if (r.ok) {
-        setTeam(r.team)
-        await load(r.team)
-      }
-      setBooting(false)
     })()
     return () => {
       alive = false
@@ -267,33 +296,42 @@ function Student({ theme, onToggleTheme }) {
   const seenRound = useRef(null)
   useEffect(() => {
     if (!team) return
-    const off = subscribeSignals(async (sig) => {
-      // 다른 조의 주문서 제출은 나와 무관하다 — 관리자만 본다
-      if (sig.kind === 'sheet_saved') return
+    const off = subscribeSignals(
+      async (sig) => {
+        try {
+          if (!sig || sig.kind === 'sheet_saved') return // 주문서 제출은 관리자만 본다
 
-      const before = hintsRef.current.length
-      const fresh = await refetch()
-      if (!fresh?.ok) return
+          const before = hintsRef.current.length
+          const fresh = await refetch()
+          if (!fresh?.ok) return
 
-      if (sig.kind === 'hints_changed') {
-        // 나에게 실제로 새 힌트가 왔을 때만 알린다.
-        // 다른 조에 지급돼도 신호는 오지만 내 목록은 그대로다.
-        if (fresh.hints.length > before) {
-          // 누르면 힌트 팝업이 열린다
-          pushToast('새로운 힌트가 도착했어요', 'gold', () => setHintsOpen(true))
+          if (sig.kind === 'hints_changed') {
+            // 나에게 실제로 새 힌트가 왔을 때만 알린다.
+            // 다른 조에 지급돼도 신호는 오지만 내 목록은 그대로다.
+            if (fresh.hints.length > before) {
+              // 누르면 힌트 팝업이 열린다
+              pushToast('새로운 힌트가 도착했어요', 'gold', () => setHintsOpen(true))
+            }
+          } else if (sig.kind === 'timer_started') {
+            pushToast('거래 시간이 시작됐어요', 'up')
+          } else if (sig.kind === 'broadcast') {
+            // 새 속보 도착 → 재난문자처럼 팝업으로 먼저 띄운다. 회수(deleted) 신호면 조용히 갱신만.
+            if (!sig.payload?.deleted && fresh.broadcasts?.length) setAlertBc(fresh.broadcasts[0])
+          } else if (sig.kind === 'game_reset') {
+            pushToast('대회가 초기화되었어요', 'gold')
+          } else if (sig.kind === 'game_ended') {
+            pushToast('대회가 종료되었어요', 'gold')
+          }
+          // round_advanced는 game이 갱신되면 아래 effect가 요약 모달을 띄운다
+        } catch (e) {
+          console.error('[signal handler]', e)
         }
-      } else if (sig.kind === 'timer_started') {
-        pushToast('거래 시간이 시작됐어요', 'up')
-      } else if (sig.kind === 'broadcast') {
-        // 새 속보 도착 → 재난문자처럼 팝업으로 먼저 띄운다. 회수(deleted) 신호면 조용히 갱신만.
-        if (!sig.payload?.deleted && fresh.broadcasts?.length) setAlertBc(fresh.broadcasts[0])
-      } else if (sig.kind === 'game_reset') {
-        pushToast('대회가 초기화되었어요', 'gold')
-      } else if (sig.kind === 'game_ended') {
-        pushToast('대회가 종료되었어요', 'gold')
-      }
-      // round_advanced는 game이 갱신되면 아래 effect가 요약 모달을 띄운다
-    })
+      },
+      // 실시간이 끊겼다 다시 붙으면, 그 사이 놓친 라운드 전환·속보를 한 번 따라잡는다.
+      (_ok, reconnected) => {
+        if (reconnected) void refetch()
+      },
+    )
     return off
     // hints는 ref로 읽으므로 의존성에 넣지 않는다 (넣으면 구독이 계속 재생성된다)
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -374,6 +412,23 @@ function Student({ theme, onToggleTheme }) {
     [actions, selectedCode],
   )
 
+  const placeOptionOrder = useCallback(
+    async (contractId, qty) => {
+      if (!contractId || qty <= 0) return
+      setPlacing(true)
+      await actions.placeOptionOrder(contractId, qty)
+      setPlacing(false)
+    },
+    [actions],
+  )
+
+  const quoteOptionPremium = useCallback((contractId) => actions.quoteOptionPremium(contractId), [actions])
+
+  // OptionOrderPanel이 보고 있는 계약·프리미엄·수량 → PayoffDiagram이 같은 값으로 곡선을 그린다.
+  const onHedgeQuoteChange = useCallback((contract, premiumPerUnit, qty) => {
+    setHedgeQuote({ contract, premiumPerUnit, qty })
+  }, [])
+
   const setStrokes = useCallback(
     (next) => setDrawings((d) => ({ ...d, [selectedCode]: next })),
     [selectedCode],
@@ -442,7 +497,7 @@ function Student({ theme, onToggleTheme }) {
         teamCount={board.length}
         hintCount={hints.length}
         remainingMs={remainingMs}
-        durationMs={(game?.round_duration_seconds ?? 600) * 1000}
+        durationMs={durationMs}
         timerState={timerState}
         bellTotal={broadcasts.length}
         bellCount={unreadBc}
@@ -463,34 +518,73 @@ function Student({ theme, onToggleTheme }) {
         </div>
       )}
 
+      <ModeTabs mode={mode} onChange={setMode} />
+
       <div className="app">
         <StockList
           stocks={stocks}
           selectedCode={selected.code}
           onSelect={setSelectedCode}
           onOpenMy={() => setMyOpen(true)}
-        />
-        <Chart
-          stock={selected}
-          onOpenFinancial={() => setFinOpen(true)}
-          onOpenMarket={started ? () => setMarketOpen(true) : undefined}
-          strokes={drawings[selected.code] ?? []}
-          onStrokesChange={setStrokes}
-        />
-        <OrderSheet
-          key={selected.code}
-          stock={selected}
-          stocks={stocks}
-          cash={cash}
-          onOrder={placeOrder}
-          onSelectStock={setSelectedCode}
-          placing={placing}
           tradingOpen={tradingOpen}
-          started={started}
-          ended={ended}
-          hasTraded={trades.length > 0}
-          onNotify={pushToast}
+          stepIndex={liveStep}
         />
+        {mode === 'spot' ? (
+          <>
+            <Chart
+              stock={selected}
+              onOpenFinancial={() => setFinOpen(true)}
+              onOpenMarket={started ? () => setMarketOpen(true) : undefined}
+              strokes={drawings[selected.code] ?? []}
+              onStrokesChange={setStrokes}
+              tradingOpen={tradingOpen}
+              round={game.current_round}
+              roundYearMap={game.round_year_map}
+              timerState={timerState}
+              game={game}
+            />
+            <OrderSheet
+              key={selected.code}
+              stock={selected}
+              execPrice={selExecPrice}
+              stepIndex={liveStep}
+              stocks={stocks}
+              cash={cash}
+              onOrder={placeOrder}
+              onSelectStock={setSelectedCode}
+              placing={placing}
+              tradingOpen={tradingOpen}
+              started={started}
+              ended={ended}
+              hasTraded={trades.length > 0}
+              onNotify={pushToast}
+            />
+          </>
+        ) : (
+          <>
+            <PayoffDiagram
+              stock={selected}
+              contract={hedgeQuote.contract}
+              premiumPerUnit={hedgeQuote.premiumPerUnit}
+              quantity={hedgeQuote.qty}
+            />
+            <OptionOrderPanel
+              key={selected.code}
+              stock={selected}
+              contracts={optionsContracts}
+              currentRound={game.current_round}
+              cash={cash}
+              tradingOpen={tradingOpen}
+              started={started}
+              ended={ended}
+              placing={placing}
+              onQuote={quoteOptionPremium}
+              onOrder={placeOptionOrder}
+              onQuoteChange={onHedgeQuoteChange}
+              onNotify={pushToast}
+            />
+          </>
+        )}
       </div>
 
       <MyModal

@@ -387,6 +387,108 @@
   background: var(--bg);
 }
 
+/* ── 상단 고정 바: 한눈 요약(Status strip) + 연결 인디케이터 ── */
+.admin-head .admin-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+}
+.badge.trade-live {
+  background: color-mix(in srgb, var(--ok) 16%, transparent);
+  color: var(--ok);
+  border-color: color-mix(in srgb, var(--ok) 32%, transparent);
+}
+.badge.trade-closed {
+  background: var(--panel-2);
+  color: var(--muted);
+  border-color: var(--line);
+}
+.badge.trade-waiting {
+  background: color-mix(in srgb, var(--warn) 16%, transparent);
+  color: var(--warn);
+  border-color: color-mix(in srgb, var(--warn) 32%, transparent);
+}
+.conn-dot {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: 0.2px;
+  white-space: nowrap;
+}
+.conn-dot.ok {
+  color: var(--ok);
+}
+.conn-dot.bad {
+  color: var(--up);
+}
+.conn-dot.wait {
+  color: var(--muted);
+}
+
+/* ── 시세 생성 방식(브리지/엔진) 뱃지 ── */
+.src-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.src-label {
+  font-size: 12px;
+  color: var(--muted);
+}
+.src-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  white-space: nowrap;
+}
+.src-badge.engine {
+  background: var(--gold-soft);
+  color: var(--gold);
+  border-color: color-mix(in srgb, var(--gold) 32%, transparent);
+}
+.src-badge.bridge {
+  background: var(--panel-2);
+  color: var(--text);
+}
+.src-badge.mixed {
+  background: color-mix(in srgb, var(--warn) 15%, transparent);
+  color: var(--warn);
+  border-color: color-mix(in srgb, var(--warn) 32%, transparent);
+}
+.src-badge.none {
+  background: var(--panel-2);
+  color: var(--muted);
+}
+.src-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+  gap: 8px;
+}
+.src-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 8px 10px;
+  background: var(--panel-2);
+  border-radius: var(--r-sm);
+}
+.src-r {
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--muted);
+}
+
 .apanel {
   display: flex;
   flex-direction: column;
@@ -1473,4 +1575,196 @@
 }
 .board-panel.big .lb-move {
   font-size: 20px;
+}
+
+/* ── 주가 생성기 ── */
+.sim-dual {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.sim-dual input[type='range'] {
+  flex: 1;
+  accent-color: var(--gold);
+}
+.sim-dual input.num {
+  width: 90px;
+  flex: 0 0 auto;
+}
+.sim-filters {
+  margin-bottom: 10px;
+}
+.sim-chip {
+  padding: 5px 10px;
+  border-radius: 999px;
+  border: 1.5px solid var(--line);
+  background: var(--panel);
+  color: var(--muted);
+  font-size: 12px;
+  cursor: pointer;
+}
+.sim-chip.on {
+  border-color: var(--chip-color, var(--gold));
+  color: var(--text);
+  background: color-mix(in srgb, var(--chip-color, var(--gold)) 14%, var(--panel));
+}
+.sim-chart-wrap {
+  position: relative;
+}
+.sim-chart {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+.sim-chart-empty {
+  padding: 24px;
+  text-align: center;
+  color: var(--muted);
+  font-size: 13px;
+}
+.sim-grid {
+  stroke: var(--line);
+  stroke-width: 1;
+}
+.sim-axis {
+  fill: var(--muted);
+  font-size: 10px;
+  font-family: var(--mono);
+}
+.sim-line {
+  stroke-width: 2;
+  opacity: 0.9;
+}
+.sim-line-forecast {
+  stroke-dasharray: 6 4;
+  opacity: 0.75;
+}
+.sim-point {
+  cursor: pointer;
+}
+.sim-point-forecast {
+  stroke: var(--panel);
+  stroke-width: 2;
+}
+.sim-forecast-tag {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: var(--gold-soft);
+  color: var(--gold);
+  font-size: 10px;
+  vertical-align: middle;
+}
+.sim-tooltip {
+  position: absolute;
+  transform: translate(-50%, -120%);
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  padding: 6px 10px;
+  font-size: 12px;
+  pointer-events: none;
+  white-space: nowrap;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  z-index: 5;
+}
+.sim-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 8px;
+  font-size: 11px;
+  color: var(--muted);
+}
+.sim-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.sim-legend-item i {
+  display: inline-block;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+}
+/* 미리보기 표 연도 셀의 등락률 배지 — .sub의 기본 --dim 색보다 우선해야 한다 */
+.sub.up {
+  color: var(--up);
+}
+.sub.down {
+  color: var(--down);
+}
+
+/* ── 우측 상시 플로팅 진행 패널 ── */
+.sim-dock {
+  position: fixed;
+  right: 16px;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 50;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+}
+.sim-dock-toggle {
+  padding: 10px 14px;
+  border-radius: 999px;
+  border: 1.5px solid var(--gold);
+  background: var(--panel);
+  color: var(--gold);
+  font-weight: 700;
+  font-size: 13px;
+  cursor: pointer;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.18);
+}
+.sim-dock-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  width: 224px;
+  max-height: 80vh;
+  overflow-y: auto;
+  border-radius: var(--r-sm);
+  border: 1px solid var(--line);
+  background: var(--panel);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
+}
+.sim-dock-badge {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text);
+  text-align: center;
+  padding-bottom: 4px;
+  border-bottom: 1px solid var(--line);
+}
+.sim-dock-timer {
+  margin-top: 4px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--gold);
+  font-family: var(--mono);
+}
+.sim-dock-divider {
+  border-top: 1px dashed var(--line);
+  margin: 2px 0;
+}
+.sim-dock-note {
+  font-size: 11.5px;
+  color: var(--muted);
+  text-align: center;
+  margin: 0;
+}
+.sim-dock-presets {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.sim-dock-result {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 6px 0 0;
 }

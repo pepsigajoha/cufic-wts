@@ -15,18 +15,38 @@ export const yearOf = (game, round = game?.current_round) => {
 }
 
 /**
+ * stock_price_paths 행들을 { [stock_id]: { [year]: number[] } } 로 접는다.
+ * prices는 numeric[](Postgres) → JS에선 number[] 또는 문자열 배열로 올 수 있어 Number()로 정규화.
+ */
+function foldPricePaths(rows) {
+  const out = {}
+  for (const r of rows ?? []) {
+    const arr = Array.isArray(r.prices) ? r.prices.map((v) => Number(v)) : null
+    if (!arr || !arr.length) continue
+    ;(out[r.stock_id] ??= {})[Number(r.year)] = arr
+  }
+  return out
+}
+
+/**
  * 종목 + 현재 라운드 시세 + 내 보유를 합친 목록. 화면은 전부 이걸 쓴다.
  * 가격이 없거나 0이면 거래정지 — 0으로 나누는 계산이 생기지 않게 여기서 막는다.
+ *
+ * price(연말 확정가)는 평가·리더보드·보유목록이 쓴다 — 라운드 중에도 안 흔들린다.
+ * 장중 체결가는 execPriceOf(stock, stepIdx)로 따로 뽑는다(pricePath 기준).
+ *
+ * @param {Array} pricePaths  stock_price_paths 행 목록
  */
-export function buildStocks(rawStocks, game, positions) {
+export function buildStocks(rawStocks, game, positions, pricePaths = []) {
   const year = yearOf(game)
   const prevYear = year != null ? year - 1 : null
   const round = game?.current_round ?? 0
   const posByCode = Object.fromEntries((positions ?? []).map((p) => [p.stock_id, p]))
+  const pathsByStock = foldPricePaths(pricePaths)
 
   return (rawStocks ?? [])
     .slice()
-    .sort((a, b) => a.display_order - b.display_order)
+    .sort((a, b) => (a.display_order ?? 0) - (b.display_order ?? 0))
     .map((s) => {
       const raw = year != null ? Number(s.prices?.[String(year)] ?? 0) : 0
       const halted = !raw || raw <= 0
@@ -35,9 +55,8 @@ export function buildStocks(rawStocks, game, positions) {
       const prev = !prevRaw || prevRaw <= 0 ? price : prevRaw
       const delta = price - prev
       const pos = posByCode[s.id]
-      // 상장 예정: 아직 상장 라운드에 못 미친 종목. 목록에서 숨긴다(스포일러·오조작 방지).
-      // 가격 0으로 거래정지되는 '상장폐지'와 구분되는 상태다.
       const preListed = round > 0 && round < (s.listed_from_round ?? 1)
+      const pricePathsByYear = pathsByStock[s.id] ?? {}
       return {
         code: s.id,
         name: s.name,
@@ -52,8 +71,23 @@ export function buildStocks(rawStocks, game, positions) {
         chg: halted || !prev ? 0 : (delta / prev) * 100,
         holding: pos?.quantity ?? 0,
         avgPrice: Number(pos?.avg_price ?? 0),
+        // 장중 경로: 현재 연도(있으면) + 연도별 전체(차트 히스토리 조립용)
+        pricePath: (year != null && pricePathsByYear[year]) || null,
+        pricePathsByYear,
       }
     })
+}
+
+/**
+ * 장중 스텝(0..251)에 해당하는 체결가. 경로가 없으면 연말 확정가(price)로 폴백.
+ * SQL private.exec_price와 같은 의미 — 차트 팁·주문 예상금액이 이 값으로 표시된다.
+ */
+export function execPriceOf(stock, stepIdx) {
+  const p = stock?.pricePath
+  if (!Array.isArray(p) || p.length === 0) return stock?.price ?? 0
+  const i = Math.max(0, Math.min(p.length - 1, Math.floor(stepIdx || 0)))
+  const v = Number(p[i])
+  return Number.isFinite(v) && v > 0 ? Math.round(v) : (stock?.price ?? 0)
 }
 
 // DB 행 → 화면이 쓰는 모양. 재무제표: { [종목코드]: { [연도]: {입력 7개} } }
@@ -97,10 +131,11 @@ function shapeMacro(rows) {
  * 실패하면 화면이 통째로 죽는 대신 {ok:false}를 돌려준다.
  */
 export async function loadAll(teamCode, teamId) {
-  const [game, stocks, positions, trades, hints, snaps, board, me, cash, bcast, fin, macro] =
+  const [game, stocks, paths, positions, trades, hints, snaps, board, me, cash, bcast, fin, macro, optionsContracts, myOptions] =
     await Promise.all([
       select('game_state', '*'),
       select('stocks', '*'),
+      select('stock_price_paths', 'stock_id,year,prices'),
       select('positions', '*', (q) => q.eq('team_id', teamId)),
       select('trades', '*', (q) => q.eq('team_id', teamId).order('created_at', { ascending: false })),
       rpc('get_my_hints', { p_team_code: teamCode }),
@@ -111,17 +146,22 @@ export async function loadAll(teamCode, teamId) {
       select('broadcasts', '*', (q) => q.order('id', { ascending: false })),
       rpc('get_financials'), // 현재 라운드 연도까지만 (서버가 미래 연도 차단)
       rpc('get_macro'),
+      select('options_contracts', '*', (q) => q.eq('active', true)),
+      select('user_options_positions', '*', (q) => q.eq('team_id', teamId).order('created_at', { ascending: false })),
     ])
 
-  const failed = [game, stocks, positions, trades, hints, snaps, board, me, bcast, fin, macro].find(
-    (r) => !r.ok,
-  )
+  // stock_price_paths는 하위호환용 — 마이그레이션 20260830000043 이전 DB엔 테이블이 없어
+  // select가 실패한다. 그 경우 경로 없이(연말 확정가 폴백) 정상 동작해야 하므로 치명 목록에서 뺀다.
+  const failed = [
+    game, stocks, positions, trades, hints, snaps, board, me, bcast, fin, macro, optionsContracts, myOptions,
+  ].find((r) => !r.ok)
   if (failed) return { ok: false, error: failed.error ?? 'network' }
 
   return {
     ok: true,
     game: game.rows[0] ?? null,
     rawStocks: stocks.rows,
+    pricePaths: paths.ok ? paths.rows : [],
     positions: positions.rows,
     trades: trades.rows,
     hints: hints.rows ?? [],
@@ -132,12 +172,14 @@ export async function loadAll(teamCode, teamId) {
     macro: shapeMacro(macro.rows),
     seed: Number(me.rows[0]?.seed ?? 0), // 원금 — 조마다 다를 수 있다
     cash: Number(cash.value ?? 0),
+    optionsContracts: optionsContracts.rows,
+    myOptionPositions: myOptions.rows,
   }
 }
 
 /** 신호를 받았을 때 다시 가져오는 것들 (내 조 데이터 + 공개 데이터) */
 export async function refetchMine(teamCode, teamId) {
-  const [positions, trades, hints, snaps, board, game, cash, bcast, fin, macro, stocks] =
+  const [positions, trades, hints, snaps, board, game, cash, bcast, fin, macro, stocks, paths, optionsContracts, myOptions] =
     await Promise.all([
       select('positions', '*', (q) => q.eq('team_id', teamId)),
       select('trades', '*', (q) => q.eq('team_id', teamId).order('created_at', { ascending: false })),
@@ -150,10 +192,14 @@ export async function refetchMine(teamCode, teamId) {
       rpc('get_financials'),
       rpc('get_macro'),
       select('stocks', '*'), // 팩 전환으로 종목이 통째로 바뀔 수 있어 함께 갱신
+      select('stock_price_paths', 'stock_id,year,prices'), // 시뮬레이터 적용/데이터셋 전환으로 바뀔 수 있어 함께 갱신
+      select('options_contracts', '*', (q) => q.eq('active', true)),
+      select('user_options_positions', '*', (q) => q.eq('team_id', teamId).order('created_at', { ascending: false })),
     ])
-  const failed = [positions, trades, hints, snaps, board, game, bcast, fin, macro, stocks].find(
-    (r) => !r.ok,
-  )
+  // paths(stock_price_paths)는 하위호환용 — 마이그레이션 이전 DB엔 테이블이 없다. 치명 목록 제외.
+  const failed = [
+    positions, trades, hints, snaps, board, game, bcast, fin, macro, stocks, optionsContracts, myOptions,
+  ].find((r) => !r.ok)
   if (failed) return { ok: false, error: failed.error ?? 'network' }
   return {
     ok: true,
@@ -166,8 +212,11 @@ export async function refetchMine(teamCode, teamId) {
     financials: shapeFinancials(fin.rows),
     macro: shapeMacro(macro.rows),
     rawStocks: stocks.rows,
+    pricePaths: paths.ok ? paths.rows : [],
     game: game.rows[0] ?? null,
     cash: Number(cash.value ?? 0),
+    optionsContracts: optionsContracts.rows,
+    myOptionPositions: myOptions.rows,
   }
 }
 
@@ -178,12 +227,40 @@ export async function refetchMine(teamCode, teamId) {
  * Realtime은 RLS를 쓰는데 anon은 hint_grants를 볼 수 없기 때문. 그래서 signals 테이블에
  * "무엇이 바뀌었다"만 흘리고, 받으면 각자 자기 데이터를 RPC로 다시 가져온다.
  */
-export function subscribeSignals(onSignal) {
+export function subscribeSignals(onSignal, onStatus) {
+  // 콜백이 던져도 realtime 내부 디스패처가 깨지지 않게 각 호출을 격리한다.
+  const safe = (label, fn) => {
+    try {
+      fn()
+    } catch (e) {
+      console.error(`[signals:${label}]`, e)
+    }
+  }
+
+  // 채널이 한 번이라도 끊겼다가 다시 붙으면, 끊겨 있던 동안의 signals INSERT를 전부
+  // 놓친 상태다 — 재구독 순간 한 번 강제로 재동기화하도록 소비자에게 알린다.
+  let wasDown = false
+
   const ch = supabase
     .channel('wts-signals')
-    .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'signals' }, (p) =>
-      onSignal(p.new),
+    .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'signals' }, (p) => {
+      if (!p?.new) return
+      safe('onSignal', () => onSignal(p.new))
+    })
+    // status: 'SUBSCRIBED' | 'TIMED_OUT' | 'CHANNEL_ERROR' | 'CLOSED'
+    // supabase-js는 소켓 복구 시 채널을 자동 재구독하고 이 콜백을 다시 부른다.
+    .subscribe((status, err) => {
+      if (err) console.error('[signals:subscribe]', err)
+      const up = status === 'SUBSCRIBED'
+      if (!up) wasDown = true
+      safe('onStatus', () => onStatus?.(up, up && wasDown /* reconnected */))
+      if (up) wasDown = false
+    })
+
+  return () => {
+    // removeChannel은 Promise를 반환한다 — 정리 경로에서 거부가 새지 않게 삼킨다.
+    Promise.resolve(supabase.removeChannel(ch)).catch((e) =>
+      console.error('[signals:removeChannel]', e),
     )
-    .subscribe()
-  return () => supabase.removeChannel(ch)
+  }
 }

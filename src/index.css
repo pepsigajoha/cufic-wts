@@ -426,6 +426,197 @@ button.badge.rank:hover {
   flex-direction: column;
 }
 
+/* ===== 주식 매매 ↔ 파생·헷지 탭 ===== */
+.mode-tabs {
+  display: flex;
+  gap: 6px;
+  padding: 8px 16px;
+  background: var(--panel);
+  border-bottom: 1px solid var(--line);
+}
+.mode-tab {
+  padding: 8px 16px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  background: var(--panel-2);
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.mode-tab:hover {
+  color: var(--text);
+}
+.mode-tab.on {
+  background: var(--gold-soft);
+  border-color: var(--gold);
+  color: var(--text);
+}
+
+/* ===== 파생·헷지: 손익 다이어그램(가운데) ===== */
+.hedge-head {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: 14px 16px 4px;
+}
+.hedge-head .hnm {
+  font-size: 15px;
+  font-weight: 800;
+}
+.hedge-head .hmeta {
+  font-size: 12px;
+  color: var(--muted);
+}
+.payoff-svg {
+  flex: 1;
+  min-height: 0;
+}
+.payoff-axis-zero {
+  stroke: var(--dim);
+  stroke-width: 1;
+}
+.payoff-axis-strike {
+  stroke: var(--gold);
+  stroke-width: 1;
+  stroke-dasharray: 4 4;
+}
+.payoff-axis-floor {
+  stroke: var(--down);
+  stroke-width: 1;
+  stroke-dasharray: 2 4;
+  opacity: 0.6;
+}
+.payoff-line.unhedged {
+  stroke: var(--dim);
+  stroke-width: 1.5;
+  stroke-dasharray: 3 5;
+}
+.payoff-line.hedged {
+  stroke: var(--up);
+  stroke-width: 2.5;
+}
+.payoff-marker {
+  fill: var(--gold);
+  stroke: var(--bg);
+  stroke-width: 1.5;
+}
+.payoff-label {
+  font-size: 10.5px;
+  fill: var(--muted);
+}
+.payoff-label.floor {
+  fill: var(--down);
+}
+.payoff-label.breakeven {
+  fill: var(--gold);
+}
+.payoff-empty {
+  flex: 1;
+  display: grid;
+  place-items: center;
+  color: var(--dim);
+  font-size: 13px;
+}
+.hedge-legend {
+  flex: 0 0 auto;
+  display: flex;
+  gap: 16px;
+  padding: 8px 16px 14px;
+  font-size: 11.5px;
+  color: var(--muted);
+}
+.hedge-legend .lg {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.hedge-legend .sw {
+  width: 16px;
+  height: 0;
+  border-top: 2px solid var(--dim);
+}
+.hedge-legend .sw.dotted {
+  border-top-style: dashed;
+}
+.hedge-legend .sw.solid {
+  border-top: 2.5px solid var(--up);
+}
+
+/* ===== 파생·헷지: 옵션 주문 패널(오른쪽) ===== */
+.opt-select {
+  margin: 12px 16px 0;
+  padding: 9px 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  background: var(--panel-2);
+  color: var(--text);
+  font-size: 12.5px;
+}
+.act-btn.hedge-auto {
+  height: auto;
+  padding: 10px;
+  margin-bottom: 8px;
+  background: var(--gold-soft);
+  border: 1px solid var(--gold);
+  color: var(--text);
+  font-size: 12.5px;
+  letter-spacing: 0;
+  white-space: normal;
+  line-height: 1.4;
+}
+.act-btn.hedge-auto:not(:disabled):hover {
+  background: var(--gold);
+  color: var(--on-gold);
+}
+.text-btn.smile-trigger {
+  display: block;
+  margin: 0 0 10px;
+  font-size: 11.5px;
+}
+
+/* ===== 변동성 스마일 팝업 ===== */
+.vsmile-intro {
+  font-size: 12.5px;
+  color: var(--muted);
+  line-height: 1.6;
+  margin: 0 0 14px;
+}
+.vsmile-svg {
+  display: block;
+  margin: 0 auto;
+}
+.vsmile-grid {
+  stroke: var(--line);
+  stroke-width: 1;
+}
+.vsmile-tick {
+  font-size: 10px;
+  fill: var(--dim);
+}
+.vsmile-line {
+  stroke: var(--gold);
+  stroke-width: 2;
+}
+.vsmile-dot {
+  stroke: var(--bg);
+  stroke-width: 1.5;
+}
+.vsmile-dot.put {
+  fill: var(--down);
+}
+.vsmile-dot.call {
+  fill: var(--up);
+}
+.vsmile-empty,
+.vsmile-note {
+  font-size: 12px;
+  color: var(--dim);
+  text-align: center;
+  padding: 8px 0 0;
+}
+
 /* ===== 왼쪽: 종목 리스트 ===== */
 .stocklist {
   background: var(--panel);
@@ -483,6 +674,9 @@ button.badge.rank:hover {
 }
 .row .pr {
   text-align: right;
+  border-radius: var(--r-sm);
+  padding: 2px 4px;
+  margin: -2px -4px;
 }
 .row .price {
   font-size: 13.5px;
@@ -491,6 +685,36 @@ button.badge.rank:hover {
 .row .chg {
   font-size: 11px;
   margin-top: 2px;
+}
+/* 주(5스텝) 경계·추세 방향 전환 때만 한 번 번쩍인다 — 스텝(2.4초)마다 깜빡이지 않도록.
+   flashKey가 바뀌면 .pr이 리마운트되며 이 애니메이션이 처음부터 재생된다. */
+.row .pr.wk-flash.up {
+  animation: sl-week-flash-up 0.55s ease-out;
+}
+.row .pr.wk-flash.down {
+  animation: sl-week-flash-down 0.55s ease-out;
+}
+@keyframes sl-week-flash-up {
+  from {
+    background: var(--up-soft);
+  }
+  to {
+    background: transparent;
+  }
+}
+@keyframes sl-week-flash-down {
+  from {
+    background: var(--down-soft);
+  }
+  to {
+    background: transparent;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .row .pr.wk-flash.up,
+  .row .pr.wk-flash.down {
+    animation: none;
+  }
 }
 .mybtn {
   margin: 10px 14px 14px;
@@ -636,21 +860,23 @@ button.badge.rank:hover {
   stroke: var(--line-soft);
   stroke-width: 1;
 }
-.ma {
+.price-line {
   fill: none;
   stroke: var(--gold);
   stroke-width: 1.5;
   opacity: 0.85;
 }
-.candle.up rect,
-.candle.up line {
-  fill: var(--up);
-  stroke: var(--up);
+.price-fill {
+  fill: url(#price-fill);
+  stroke: none;
 }
-.candle.down rect,
-.candle.down line {
-  fill: var(--down);
-  stroke: var(--down);
+.price-fill-stop-start {
+  stop-color: var(--gold);
+  stop-opacity: 0.16;
+}
+.price-fill-stop-end {
+  stop-color: var(--gold);
+  stop-opacity: 0;
 }
 .nowline {
   stroke: var(--up);
@@ -661,10 +887,52 @@ button.badge.rank:hover {
 .nowline.down {
   stroke: var(--down);
 }
+/* 라운드 거래 시간 중에만 뜨는 실시간 틱 펄스 — 순수 시각 효과(체결가에 영향 없음) */
+.nowline-pulse {
+  fill: var(--up);
+  opacity: 0.9;
+  animation: nowline-pulse 1.5s ease-in-out infinite;
+}
+.nowline-pulse.down {
+  fill: var(--down);
+}
+@keyframes nowline-pulse {
+  0%,
+  100% {
+    r: 3.5;
+    opacity: 0.9;
+  }
+  50% {
+    r: 5.5;
+    opacity: 0.5;
+  }
+}
 .axis {
   fill: var(--dim);
   font-family: var(--mono);
   font-size: 10px;
+}
+/* 헤더 가격 옆 "거래 중" 표시 점 — 순수 장식용. 숫자·색은 절대 안 바꾸고 이 점만 뛴다. */
+.live-dot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  margin-left: 6px;
+  border-radius: 50%;
+  background: var(--gold);
+  vertical-align: middle;
+  animation: live-dot-pulse 1.5s ease-in-out infinite;
+}
+@keyframes live-dot-pulse {
+  0%,
+  100% {
+    transform: scale(1);
+    opacity: 0.9;
+  }
+  50% {
+    transform: scale(1.6);
+    opacity: 0.5;
+  }
 }
 
 /* ===== 오른쪽: 주문 ===== */
@@ -889,6 +1157,17 @@ button.badge.rank:hover {
   font-size: 13px;
   padding: 6px 12px;
   margin-left: 6px;
+}
+.tag-ok {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: 5px;
+  background: var(--up-soft);
+  border: 1px solid color-mix(in srgb, var(--up) 40%, transparent);
+  color: var(--up);
+  white-space: nowrap;
 }
 .halted-note {
   margin: 16px 18px 0;

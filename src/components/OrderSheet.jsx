@@ -15,6 +15,8 @@ import QtyStepper, { QtyRatios } from './QtyStepper'
  */
 export default function OrderSheet({
   stock,
+  execPrice = 0, // 장중 스텝 체결가(App이 라운드 진행률로 계산). 0이면 stock.price로 폴백.
+  stepIndex = 251, // 지금 가상 며칠차(0..251) — 안내 표시용
   cash,
   onOrder,
   onSelectStock,
@@ -31,7 +33,9 @@ export default function OrderSheet({
   const [sellQty, setSellQty] = useState(0)
   const pos = positionPnl(stock)
 
-  const buyable = stock.halted ? 0 : Math.floor(cash / stock.price)
+  // 체결은 장중 스텝 가격으로 일어난다 — 예상금액·최대수량을 그 값에 맞춘다(연말 확정가 stock.price가 아니라).
+  const unit = execPrice > 0 ? execPrice : stock.price
+  const buyable = stock.halted || unit <= 0 ? 0 : Math.floor(cash / unit)
   const sellable = stock.halted ? 0 : stock.holding
 
   // 지금 보유 중인 종목 — 무엇을 얼마에 갖고 있는지
@@ -75,6 +79,14 @@ export default function OrderSheet({
           </div>
         )}
 
+        {/* 장중 현재가 — 체결이 일어나는 값. 라운드 진행에 따라 초 단위로 바뀐다. */}
+        {!stock.halted && tradingOpen && (
+          <div className="est livenow">
+            <span>현재가 (가상 {Math.min(252, stepIndex + 1)}/252일차)</span>
+            <span className="num">₩ {num(unit)}</span>
+          </div>
+        )}
+
         {/* 매수 */}
         <div className="ordsec">
           <div className="cap">
@@ -91,7 +103,7 @@ export default function OrderSheet({
           <QtyStepper value={buyQty} onChange={setBuyQty} max={buyable} label="매수 수량" disabled={locked} />
           <div className="est">
             <span>예상 매수금액</span>
-            <span className="num">₩ {num(buyQty * stock.price)}</span>
+            <span className="num">₩ {num(buyQty * unit)}</span>
           </div>
           <button className="act-btn buy" disabled={!canBuy} onClick={() => submit('buy', buyQty)}>
             {placing ? '체결 중…' : '매수'}
@@ -137,7 +149,7 @@ export default function OrderSheet({
           />
           <div className="est">
             <span>예상 매도금액</span>
-            <span className="num">₩ {num(sellQty * stock.price)}</span>
+            <span className="num">₩ {num(sellQty * unit)}</span>
           </div>
           <button
             className="act-btn sell"
