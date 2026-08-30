@@ -8,7 +8,7 @@ import { PRESETS, deriveSectorBetas } from './simulatorPresets'
 import { generateMacroNews } from './macroNews'
 import { generateBreakingNews } from './newsService'
 import { refineHintHeadlines } from './hintService'
-import { getGeminiKey, setGeminiKey, clearGeminiKey, hasGeminiKey } from './gemini'
+import { getGeminiKey, setGeminiKey, clearGeminiKey, hasGeminiKey, getGeminiModel, setGeminiModel } from './gemini'
 import { buildDerivedContent } from './simContent'
 import PreviewChart from './PreviewChart'
 
@@ -97,6 +97,7 @@ export default function AdminSimulator({
   const [hintAiBusy, setHintAiBusy] = useState(false)
   const [keyInput, setKeyInput] = useState('')
   const [keySet, setKeySet] = useState(() => hasGeminiKey())
+  const [modelInput, setModelInput] = useState(() => getGeminiModel())
 
   const namesById = useMemo(() => Object.fromEntries(stocks.map((s) => [s.id, s.name])), [stocks])
   // 이번 라운드 종목별 등락률(%) — 시황 프롬프트에 넘겨 문장이 실제 움직임을 설명하게 한다.
@@ -122,6 +123,10 @@ export default function AdminSimulator({
   const removeKey = () => {
     clearGeminiKey()
     setKeySet(false)
+  }
+  const saveModel = () => {
+    setGeminiModel(modelInput)
+    setModelInput(getGeminiModel())
   }
 
   // 탭을 벗어났다 돌아와도 슬라이더 값이 그대로이도록 바뀔 때마다 저장한다.
@@ -277,7 +282,7 @@ export default function AdminSimulator({
       setNewsSectors([...new Set(result.items.flatMap((it) => it.sectors))])
       setNewsSource(result.source)
       if (result.source === 'rule' && result.error) {
-        notify('AI 속보 생성에 실패해 규칙 기반으로 대체했어요', 'down')
+        notify(`AI 속보 실패 (규칙 기반 대체): ${result.error}`, 'down')
       }
     } catch (e) {
       notify(e?.message ?? String(e), 'down')
@@ -294,7 +299,7 @@ export default function AdminSimulator({
       const { hints, source, error } = await refineHintHeadlines(preview.derived.hints, namesById)
       setPreview((p) => (p ? { ...p, derived: { ...p.derived, hints } } : p))
       if (source === 'gemini') notify('힌트 문장을 AI로 다듬었어요', 'gold')
-      else if (error) notify('AI 힌트 생성 실패 — 템플릿 문장을 유지해요', 'down')
+      else if (error) notify(`AI 힌트 실패 (템플릿 유지): ${error}`, 'down')
       else notify('Gemini 키가 없어요 — 위 [Gemini 키]에 붙여넣으세요', 'down')
     } finally {
       setHintAiBusy(false)
@@ -467,9 +472,20 @@ export default function AdminSimulator({
             </button>
           </div>
         )}
+        <div className="frow two" style={{ alignItems: 'center', marginTop: 8 }}>
+          <input
+            placeholder="모델명 (기본 gemini-3.6-flash)"
+            value={modelInput}
+            onChange={(e) => setModelInput(e.target.value)}
+          />
+          <button type="button" className="text-btn" onClick={saveModel}>
+            모델 저장
+          </button>
+        </div>
         <p className="anote">
-          이 브라우저에만 저장돼요(탭 닫으면 사라짐). Google로만 전송되고 파일·서버·다른 사용자에게
-          안 갑니다. 키가 없으면 문장은 규칙 템플릿을 써요 — <b>숫자·방향은 키와 무관하게 항상 정확</b>.
+          키·모델은 이 브라우저에만 저장돼요(탭 닫으면 사라짐). Google로만 전송되고 파일·서버·다른
+          사용자에게 안 갑니다. 404가 나면(Google이 모델을 갈아치움) 위 칸에 새 모델명을 넣으세요.
+          키가 없으면 문장은 규칙 템플릿 — <b>숫자·방향은 키와 무관하게 항상 정확</b>.
         </p>
       </section>
 

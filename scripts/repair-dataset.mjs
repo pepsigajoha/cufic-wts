@@ -87,6 +87,20 @@ if (!APPLY) {
   process.exit(0)
 }
 
+// 반영 전 현재 콘텐츠를 데이터셋으로 백업 (되돌릴 때 admin_load_dataset)
+const stamp = new Date().toISOString().slice(0, 16).replace('T', ' ')
+const bk = await sb.rpc('admin_save_dataset', {
+  p_admin_secret: ADMIN,
+  p_name: `보정 전 자동백업 ${stamp}`,
+  p_description: 'repair-dataset.mjs --apply 실행 직전',
+  p_id: null,
+})
+if (bk.error || bk.data?.ok === false) {
+  console.error('백업 실패 — 중단합니다:', bk.error?.message ?? JSON.stringify(bk.data))
+  process.exit(1)
+}
+console.log(`백업됨: "보정 전 자동백업 ${stamp}"`)
+
 const { data, error } = await sb.rpc('admin_apply_generated_content', {
   p_admin_secret: ADMIN,
   p_financials: finRows,

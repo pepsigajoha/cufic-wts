@@ -8,8 +8,29 @@
 // 우선순위: 이 키 있으면 직접 호출 → 없으면 Edge Function → 둘 다 없으면 규칙 템플릿.
 
 const KEY_STORAGE = 'wts-gemini-key'
-const ENDPOINT =
-  'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent'
+const MODEL_STORAGE = 'wts-gemini-model'
+// Google이 몇 달마다 모델을 갈아치운다(1.5→2.0→3.6…). 404가 나면 아래 기본값을 바꾸거나
+// 관리자 화면 [모델] 칸에 새 이름을 넣으면 된다(sessionStorage에 저장).
+const DEFAULT_MODEL = 'gemini-3.6-flash'
+const endpointFor = (model) =>
+  `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`
+
+export function getGeminiModel() {
+  try {
+    return sessionStorage.getItem(MODEL_STORAGE) || DEFAULT_MODEL
+  } catch {
+    return DEFAULT_MODEL
+  }
+}
+
+export function setGeminiModel(m) {
+  try {
+    if (m && m.trim() && m.trim() !== DEFAULT_MODEL) sessionStorage.setItem(MODEL_STORAGE, m.trim())
+    else sessionStorage.removeItem(MODEL_STORAGE)
+  } catch {
+    /* 무시 */
+  }
+}
 
 export function getGeminiKey() {
   try {
@@ -47,7 +68,7 @@ export async function callGemini(prompt, { json = true, temperature = 0.9 } = {}
   const key = getGeminiKey()
   if (!key) throw new Error('no_gemini_key')
 
-  const res = await fetch(`${ENDPOINT}?key=${encodeURIComponent(key)}`, {
+  const res = await fetch(`${endpointFor(getGeminiModel())}?key=${encodeURIComponent(key)}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -58,7 +79,12 @@ export async function callGemini(prompt, { json = true, temperature = 0.9 } = {}
       },
     }),
   })
-  if (!res.ok) throw new Error(`gemini_http_${res.status}`)
+  if (!res.ok) {
+    // Google이 주는 에러 본문(모델 없음·키 무효 등)을 그대로 실어 준다
+    const detail = await res.text().catch(() => '')
+    const msg = detail.match(/"message"\s*:\s*"([^"]+)"/)?.[1] ?? detail.slice(0, 200)
+    throw new Error(`gemini_http_${res.status}${msg ? ` — ${msg}` : ''}`)
+  }
 
   const data = await res.json()
   const text = data?.candidates?.[0]?.content?.parts?.[0]?.text

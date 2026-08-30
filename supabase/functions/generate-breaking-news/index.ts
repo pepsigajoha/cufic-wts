@@ -14,7 +14,9 @@
 // 키 설정: supabase secrets set GEMINI_API_KEY=xxxxx
 import { createClient } from 'jsr:@supabase/supabase-js@2'
 
-const GEMINI_ENDPOINT = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent'
+// Google이 모델을 자주 갈아치운다(1.5→2.0→3.6…). 404가 나면 GEMINI_MODEL secret 으로 덮어쓴다.
+const GEMINI_MODEL = Deno.env.get('GEMINI_MODEL') || 'gemini-3.6-flash'
+const GEMINI_ENDPOINT = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`
 
 // Supabase 대시보드가 아닌 다른 오리진(로컬 dev 서버 등)에서 오는 브라우저 호출을 허용한다.
 const CORS_HEADERS = {
