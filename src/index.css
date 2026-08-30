@@ -988,6 +988,42 @@ button.badge.rank:hover {
   font-size: 11.5px;
   color: var(--muted);
 }
+/* [매수 | 매도] 토글 — 증권사 주문창 형태 */
+.side-tabs {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+.side-tab {
+  flex: 1;
+  height: 38px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  background: var(--panel-2);
+  color: var(--muted);
+  font-size: 14px;
+  font-weight: 800;
+  letter-spacing: 1px;
+  cursor: pointer;
+}
+.side-tab:hover {
+  color: var(--text);
+}
+.side-tab.buy.on {
+  background: var(--up-soft);
+  border-color: var(--up);
+  color: var(--up);
+}
+.side-tab.sell.on {
+  background: var(--down-soft);
+  border-color: var(--down);
+  color: var(--down);
+}
+@media (max-width: 1279px), (pointer: coarse) {
+  .side-tab {
+    height: 44px;
+  }
+}
 /* 평단/평가손익 박스 */
 .posbox {
   background: var(--panel-2);
@@ -1255,6 +1291,111 @@ button.badge.rank:hover {
 .rb-mine b {
   color: var(--text);
   font-weight: 600;
+}
+
+/* 라운드 요약: 자산 변동 요약 카드 */
+.rsum-cards {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  margin-bottom: 14px;
+}
+.rsum-card {
+  background: var(--panel-2);
+  border-radius: var(--r-md);
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  text-align: left;
+}
+.rsum-card .k {
+  font-size: 11px;
+  color: var(--muted);
+}
+.rsum-card .v {
+  font-size: 15px;
+  font-weight: 800;
+}
+
+/* 라운드 요약: 자산 그래프 · 종목 등락률 바 */
+.rsum-graph,
+.chgbars {
+  margin-top: 16px;
+  text-align: left;
+}
+.cb-breadth {
+  float: right;
+  font-size: 11px;
+  letter-spacing: normal;
+  color: var(--muted);
+}
+.chgbar-list {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  margin-top: 6px;
+}
+.chgbar-row {
+  display: grid;
+  grid-template-columns: 92px 1fr 52px;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+}
+.chgbar-row.mine .cb-name {
+  color: var(--text);
+  font-weight: 700;
+}
+.cb-name {
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.cb-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--gold);
+  flex: 0 0 auto;
+}
+.cb-track {
+  position: relative;
+  height: 14px;
+  background: var(--panel-2);
+  border-radius: 3px;
+}
+.cb-track::before {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: var(--line);
+}
+.cb-fill {
+  position: absolute;
+  top: 2px;
+  bottom: 2px;
+  border-radius: 2px;
+}
+.cb-fill.up {
+  background: var(--up);
+}
+.cb-fill.down {
+  background: var(--down);
+}
+.cb-val {
+  text-align: right;
+  font-weight: 700;
+}
+.cb-val.cb-halt {
+  color: var(--dim);
 }
 
 /* 주문 확인: 체결 후 예수금 */
@@ -2701,6 +2842,10 @@ td {
 /* ===== 파산 위기 배너 ===== */
 .bankrupt-warn {
   flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
   padding: 9px 16px;
   text-align: center;
   font-size: 13px;
@@ -2708,6 +2853,29 @@ td {
   color: var(--down);
   background: var(--down-soft);
   border-bottom: 1px solid color-mix(in srgb, var(--down) 30%, transparent);
+}
+.bankrupt-warn__close {
+  flex: 0 0 auto;
+  width: 26px;
+  height: 26px;
+  display: grid;
+  place-items: center;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: inherit;
+  font-size: 13px;
+  line-height: 1;
+  cursor: pointer;
+}
+.bankrupt-warn__close:hover {
+  background: color-mix(in srgb, var(--down) 18%, transparent);
+}
+@media (max-width: 1279px), (pointer: coarse) {
+  .bankrupt-warn__close {
+    width: 44px;
+    height: 44px;
+  }
 }
 
 /* ===== 긴급 속보(재난문자) 팝업 ===== */

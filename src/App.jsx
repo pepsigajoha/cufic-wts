@@ -99,6 +99,7 @@ function Student({ theme, onToggleTheme }) {
   })
   const [roundSummary, setRoundSummary] = useState(null)
   const [finalOpen, setFinalOpen] = useState(false) // 대회 종료 결과 모달
+  const [bankruptSeen, setBankruptSeen] = useState(false) // 파산 배너 — 이 라운드에 이 기기에서 닫았는지
   const [toasts, pushToast, dismissToast] = useToasts()
 
   const stocks = useMemo(
@@ -253,6 +254,11 @@ function Student({ theme, onToggleTheme }) {
       warned30.current = false
     }
   }, [remainingMs, tradingOpen, pushToast])
+
+  // 파산 배너의 "닫기"는 이 라운드·이 기기 한정 — 연도가 넘어가면 (가격 재평가로 상황이 바뀌므로) 다시 보여준다
+  useEffect(() => {
+    setBankruptSeen(false)
+  }, [game?.current_round])
 
   // 속보 팝업이 열려 있으면(그리고 목록이 갱신되면) 전부 읽음 처리 → 깜빡임 멈춤
   useEffect(() => {
@@ -512,9 +518,19 @@ function Student({ theme, onToggleTheme }) {
       {!started && (
         <div className="notstarted">아직 대회가 시작되지 않았어요. 강사 선생님을 기다려 주세요.</div>
       )}
-      {bankrupt && (
+      {bankrupt && !bankruptSeen && (
         <div className="bankrupt-warn">
-          💸 파산 위기! 자산이 원금의 20% 아래로 줄었어요. 힌트와 재무제표를 다시 보고 신중히 골라봐요 — 아직 기회는 있어요!
+          <span>
+            💸 파산 위기! 자산이 원금의 20% 아래로 줄었어요. 힌트와 재무제표를 다시 보고 신중히 골라봐요 — 아직 기회는 있어요!
+          </span>
+          <button
+            type="button"
+            className="bankrupt-warn__close"
+            onClick={() => setBankruptSeen(true)}
+            aria-label="파산 위기 안내 닫기"
+          >
+            ✕
+          </button>
         </div>
       )}
 
@@ -641,6 +657,7 @@ function Student({ theme, onToggleTheme }) {
         round={roundSummary}
         account={acct}
         stocks={stocks}
+        rounds={rounds}
         rows={rankRows}
         rank={myRow?.rank ?? null}
         prevRank={myRow?.prev_rank ?? null}

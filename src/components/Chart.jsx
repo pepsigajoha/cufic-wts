@@ -55,7 +55,7 @@ export default function Chart({
   game,
 }) {
   const [tool, setTool] = useState('cursor')
-  const [tfKey, setTfKey] = useState('T')
+  const [tfKey, setTfKey] = useState('W') // 초기 마운트 기본 주기 = 주봉
   const [plotRef, { w, h }] = useSize()
 
   const dir = dirOf(stock.chg)

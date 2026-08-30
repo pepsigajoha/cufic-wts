@@ -10,6 +10,7 @@ const SORTS = [
   { key: 'price_asc', label: '가격 낮은순' },
   { key: 'chg_desc', label: '등락률 높은순' },
   { key: 'chg_asc', label: '등락률 낮은순' },
+  { key: 'holding_desc', label: '보유 많은순' },
 ]
 
 // 1주 = 5 거래스텝. 스텝은 ≈2.4초마다 넘어가므로, 미시적 틱마다 색이 깜빡이지 않게
@@ -26,6 +27,7 @@ export default function StockList({ stocks, selectedCode, onSelect, onOpenMy, tr
   else if (sort === 'price_asc') rows.sort((a, b) => a.price - b.price)
   else if (sort === 'chg_desc') rows.sort((a, b) => b.chg - a.chg)
   else if (sort === 'chg_asc') rows.sort((a, b) => a.chg - b.chg)
+  else if (sort === 'holding_desc') rows.sort((a, b) => (b.holding || 0) - (a.holding || 0))
   // default → filter가 유지한 등록 순서 그대로
 
   // 지금이 몇 번째 "주"인가 — 5스텝마다 1 증가. 플래시 재생의 트리거로 쓴다.
