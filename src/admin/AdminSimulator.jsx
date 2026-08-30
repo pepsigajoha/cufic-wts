@@ -7,6 +7,7 @@ import { classifySector, buildSectorPalette } from './sectorTaxonomy'
 import { PRESETS, deriveSectorBetas } from './simulatorPresets'
 import { generateMacroNews } from './macroNews'
 import { generateBreakingNews } from './newsService'
+import { buildDerivedContent } from './simContent'
 import PreviewChart from './PreviewChart'
 
 // 슬라이더/시드/모드를 세션 동안 기억한다 — AdminSimulator는 탭을 벗어나면 언마운트돼
@@ -42,7 +43,15 @@ function composeNews(items) {
 }
 
 /** 주가 생성기 탭. 7요인 확률과정 엔진으로 라운드별 가격을 생성해 미리보고, 확인 후에만 반영한다. */
-export default function AdminSimulator({ actions, game, stocks, refresh, notify }) {
+export default function AdminSimulator({
+  actions,
+  game,
+  stocks,
+  financials = [],
+  macro: macroRows = [],
+  refresh,
+  notify,
+}) {
   // 종목·가격 탭과 동일한 연도 산출 로직(라운드 연도 + 최종 정산 연도, 유령 열 없음)
   const finalYear = Number(game?.final_year) || null
   const years = useMemo(() => {
@@ -103,6 +112,23 @@ export default function AdminSimulator({ actions, game, stocks, refresh, notify 
 
   const ready = stockIds.length > 0 && years.length > 0
 
+  // 새 가격에 맞춰 재무제표·힌트를 결정적으로 다시 만든다(숫자·방향). 헤드라인만 나중에 LLM 교체.
+  // regenYears 의 앞 연도가 앵커 — next 모드는 [다음연도], batch 는 [둘째 연도부터 전부].
+  const deriveContent = (prices, regenYears) => {
+    const macroByYear = {}
+    for (const m of macroRows) macroByYear[Number(m.year)] = { rate: Number(m.rate), cpi: Number(m.cpi) }
+    for (const y of regenYears) macroByYear[y] = { rate: Number(macro.int_r), cpi: Number(macro.inf) }
+    return buildDerivedContent({
+      prices,
+      stocks,
+      financials,
+      macroByYear,
+      roundYearMap: game?.round_year_map ?? {},
+      finalYear,
+      regenYears,
+    })
+  }
+
   const generate = () => {
     if (mode === 'next') {
       if (!nextReady) return
@@ -147,6 +173,7 @@ export default function AdminSimulator({ actions, game, stocks, refresh, notify 
           forecastYears: [forecastYear],
           betaFx,
           betaOil,
+          derived: deriveContent(prices, [Number(nextRoundYear)]),
         })
 
         const items = generateMacroNews(macro, prevMacro, nextRoundNumber)
@@ -189,6 +216,7 @@ export default function AdminSimulator({ actions, game, stocks, refresh, notify 
         forecastYears: [],
         betaFx,
         betaOil,
+        derived: deriveContent(prices, years.slice(1).map(Number)),
       })
       setNewsHeadline('')
       setNewsBody('')
@@ -229,8 +257,19 @@ export default function AdminSimulator({ actions, game, stocks, refresh, notify 
     if (!r.ok) return notify(errorText(r.error), 'down')
     const n = (r.scalar_applied ?? 0) || (r.paths_applied ?? 0) || stockIds.length
     notify(`${n}개 종목 가격을 반영했어요${r.paths_applied ? ` (장중 경로 ${r.paths_applied}종목)` : ''}`, 'gold')
+    await applyDerived()
     setPreview(null)
     await refresh()
+  }
+
+  // 가격과 함께 재무제표·힌트도 반영한다. 가격 적용이 성공한 뒤에만 부른다.
+  const applyDerived = async () => {
+    const d = preview?.derived
+    if (!d || (d.financials.length === 0 && d.replaceRounds.length === 0)) return
+    if (typeof actions.applyGeneratedContent !== 'function') return // 마이그레이션 미배포 시 조용히 건너뜀
+    const gc = await actions.applyGeneratedContent(d.financials, d.hints, d.replaceRounds)
+    if (!gc.ok) notify('가격은 됐지만 재무·힌트 반영 실패: ' + errorText(gc.error), 'down')
+    else notify(`재무 ${gc.financials}행 · 힌트 ${gc.hints}개도 반영했어요`, 'gold')
   }
 
   // 다음 라운드 적용 + 속보 발행. DB 트랜잭션 하나가 아니라 RPC 3번(백업→가격 적용→속보)을
@@ -261,6 +300,8 @@ export default function AdminSimulator({ actions, game, stocks, refresh, notify 
 
     const broadcastText = newsBody.trim() ? `${newsHeadline}\n${newsBody}` : newsHeadline
     const sent = broadcastText.trim() ? await actions.sendBroadcast(broadcastText) : { ok: true }
+
+    await applyDerived()
 
     setBusy(false)
     setConfirmApplyNews(false)
@@ -513,15 +554,56 @@ export default function AdminSimulator({ actions, game, stocks, refresh, notify 
             </section>
           )}
 
+          {preview.derived && (
+            <section className="acard">
+              <div className="acard-head">
+                <span className="acap">재무·힌트 재생성 (가격에 맞춰 자동 계산)</span>
+                {preview.derived.check.mismatches.length === 0 ? (
+                  <span className="chip ok">
+                    정합성 OK · 힌트 {preview.derived.check.checked}건 대조
+                  </span>
+                ) : (
+                  <span className="chip warn">불일치 {preview.derived.check.mismatches.length}건</span>
+                )}
+              </div>
+              <p className="anote">
+                재무제표 <b>{preview.derived.financials.length}행</b> · 힌트{' '}
+                <b>{preview.derived.hints.length}개</b>
+                {preview.derived.replaceRounds.length > 0 && ` (R${preview.derived.replaceRounds.join(', R')})`}
+                가 이 가격에 맞춰 다시 계산됐어요. [적용]을 누르면 가격과 함께 반영됩니다.
+              </p>
+              {preview.derived.check.mismatches.length > 0 && (
+                <>
+                  <p className="awarn">
+                    힌트 방향이 등락과 어긋나 적용이 막혀 있어요. 시드를 바꿔 다시 생성해 보세요.
+                  </p>
+                  <ul className="anote" style={{ color: 'var(--down)' }}>
+                    {preview.derived.check.mismatches.slice(0, 8).map((m, i) => (
+                      <li key={i}>{m}</li>
+                    ))}
+                  </ul>
+                </>
+              )}
+            </section>
+          )}
+
           <section className="acard">
             <div className="acard-head">
               <span className="acap">미리보기 표 (아직 저장 안 됨)</span>
               {mode === 'batch' ? (
-                <button className="text-btn" disabled={busy} onClick={() => setConfirmApply(true)}>
+                <button
+                  className="text-btn"
+                  disabled={busy || preview.derived?.check.mismatches.length > 0}
+                  onClick={() => setConfirmApply(true)}
+                >
                   이 가격 적용
                 </button>
               ) : (
-                <button className="text-btn" disabled={busy} onClick={() => setConfirmApplyNews(true)}>
+                <button
+                  className="text-btn"
+                  disabled={busy || preview.derived?.check.mismatches.length > 0}
+                  onClick={() => setConfirmApplyNews(true)}
+                >
                   다음 라운드 주가 적용 및 속보 발행
                 </button>
               )}

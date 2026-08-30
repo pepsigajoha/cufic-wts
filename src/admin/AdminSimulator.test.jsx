@@ -24,6 +24,7 @@ function makeProps(overrides = {}) {
   return {
     actions: {
       applySimulatedPrices: vi.fn(async () => ({ ok: true, applied: 2 })),
+      applyGeneratedContent: vi.fn(async () => ({ ok: true, financials: 0, hints: 0 })),
       saveDataset: vi.fn(async () => ({ ok: true, id: 99 })),
       sendBroadcast: vi.fn(async () => ({ ok: true, id: 1 })),
       // 기본값은 "Edge Function 미배포/키 없음" 상태 — newsService가 규칙 기반으로 대체한다.

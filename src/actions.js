@@ -126,6 +126,13 @@ export function makeAdminActions(getSecret) {
     //       또는 { [stockId]: { [year]: number[252] } } (year=null) — 다연도 배치(전체 연도 모드)
     applySimulatedPrices: (prices, paths = null, year = null) =>
       call('admin_apply_simulated_prices', { p_prices: prices, p_paths: paths, p_year: year }),
+    // 주가 생성기: 새 가격에 맞춰 재무제표·힌트를 함께 반영 (숫자는 src/admin/simContent.js 가 계산)
+    applyGeneratedContent: (financials = [], hints = [], replaceRounds = []) =>
+      call('admin_apply_generated_content', {
+        p_financials: financials,
+        p_hints: hints,
+        p_replace_hint_rounds: replaceRounds,
+      }),
 
     // 콘텐츠(B): 재무제표·시황 편집
     upsertMacro: (m) =>
