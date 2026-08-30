@@ -45,3 +45,54 @@ export function assignRoundRobin(teamsWorstFirst, pool) {
 export function distribute(teams, hints) {
   return assignRoundRobin(rankWorstFirst(teams), sortPool(hints))
 }
+
+// ── 주가 생성기용: 라운드 힌트 풀을 엔진 수익률에서 만든다.
+//
+// [왜] 엔진이 새 가격 경로를 만들면 시드 힌트의 호재/악재가 실제 등락과 어긋난다
+// (A1 감사에서 25건 중 9건이 방향 반대로 나옴). impact·grade·related 는 전부 여기서
+// 수익률로 결정하고, 헤드라인 문장만 나중에 LLM이 그럴듯하게 교체한다.
+//
+// 규칙: 그 라운드에 |등락률|이 큰 종목 순으로 grades[0], grades[1] … 를 준다
+// (가장 크게 움직이는 종목 = S). 방향은 등락률 부호. minMove 미만은 힌트로 안 낸다
+// (data.test 의 ±3% 정합성 임계값과 같게).
+const DEFAULT_HINT_GRADES = ['S', 'A', 'B', 'C', 'D']
+
+function hintHeadline(name, impact) {
+  if (impact === 'up') return `${name}, 실적·수급에 긍정 신호가 감지된다는 분석`
+  if (impact === 'down') return `${name}, 부담 요인이 쌓이고 있다는 경계론`
+  return `${name}, 방향을 가늠하기 어려운 국면`
+}
+
+/**
+ * @param {object} p
+ * @param {number} p.round   힌트가 붙는 라운드. R1(≤1)은 지급 없음 → 빈 배열.
+ * @param {Array<{stockId:string, name?:string, return:number}>} p.returns
+ *   그 라운드 연도 → 다음 연도 **등락률(%)**. 미상장·거래정지 종목은 호출부에서 제외.
+ * @param {string[]} [p.grades]  grades[i] = i번째로 큰 변동에 줄 등급 (기본 S~D 5개).
+ * @param {number}   [p.minMove] 이 %(절대값) 미만 변동은 힌트로 안 낸다 (기본 3).
+ * @returns {Array<{round:number, grade:string, impact:'up'|'down', related_stock_ids:string[], headline:string}>}
+ */
+export function deriveRoundHints({ round, returns = [], grades = DEFAULT_HINT_GRADES, minMove = 3 }) {
+  if (round <= 1) return []
+  const seen = new Set()
+  const movers = [...returns]
+    .filter((x) => {
+      if (!x || !Number.isFinite(x.return) || Math.abs(x.return) < minMove) return false
+      if (seen.has(x.stockId)) return false
+      seen.add(x.stockId)
+      return true
+    })
+    .sort((a, b) => Math.abs(b.return) - Math.abs(a.return))
+    .slice(0, grades.length)
+
+  return movers.map((x, i) => {
+    const impact = x.return > 0 ? 'up' : 'down'
+    return {
+      round,
+      grade: grades[i],
+      impact,
+      related_stock_ids: [x.stockId],
+      headline: hintHeadline(x.name ?? x.stockId, impact),
+    }
+  })
+}
