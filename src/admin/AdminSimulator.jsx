@@ -7,6 +7,8 @@ import { classifySector, buildSectorPalette } from './sectorTaxonomy'
 import { PRESETS, deriveSectorBetas } from './simulatorPresets'
 import { generateMacroNews } from './macroNews'
 import { generateBreakingNews } from './newsService'
+import { refineHintHeadlines } from './hintService'
+import { getGeminiKey, setGeminiKey, clearGeminiKey, hasGeminiKey } from './gemini'
 import { buildDerivedContent } from './simContent'
 import PreviewChart from './PreviewChart'
 
@@ -92,6 +94,35 @@ export default function AdminSimulator({
   const [newsSectors, setNewsSectors] = useState([])
   const [newsSource, setNewsSource] = useState(null) // 'rule' | 'gemini' | null
   const [aiBusy, setAiBusy] = useState(false)
+  const [hintAiBusy, setHintAiBusy] = useState(false)
+  const [keyInput, setKeyInput] = useState('')
+  const [keySet, setKeySet] = useState(() => hasGeminiKey())
+
+  const namesById = useMemo(() => Object.fromEntries(stocks.map((s) => [s.id, s.name])), [stocks])
+  // 이번 라운드 종목별 등락률(%) — 시황 프롬프트에 넘겨 문장이 실제 움직임을 설명하게 한다.
+  const previewMoves = () => {
+    if (!preview || mode !== 'next') return []
+    const a = String(currentRoundYear)
+    const b = String(nextRoundYear)
+    return stockIds
+      .map((id) => {
+        const pa = Number(preview.prices[id]?.[a])
+        const pb = Number(preview.prices[id]?.[b])
+        if (!(pa > 0) || pb == null) return null
+        return { name: namesById[id] ?? id, pct: ((pb - pa) / pa) * 100 }
+      })
+      .filter(Boolean)
+  }
+
+  const saveKey = () => {
+    setGeminiKey(keyInput)
+    setKeySet(hasGeminiKey())
+    setKeyInput('')
+  }
+  const removeKey = () => {
+    clearGeminiKey()
+    setKeySet(false)
+  }
 
   // 탭을 벗어났다 돌아와도 슬라이더 값이 그대로이도록 바뀔 때마다 저장한다.
   useEffect(() => {
@@ -232,7 +263,14 @@ export default function AdminSimulator({
   const regenerateWithAI = async () => {
     setAiBusy(true)
     try {
-      const result = await generateBreakingNews({ actions, macro, prevMacro, round: nextRoundNumber, stocks })
+      const result = await generateBreakingNews({
+        actions,
+        macro,
+        prevMacro,
+        round: nextRoundNumber,
+        stocks,
+        moves: previewMoves(),
+      })
       const composed = composeNews(result.items)
       setNewsHeadline(composed.headline)
       setNewsBody(composed.body)
@@ -245,6 +283,21 @@ export default function AdminSimulator({
       notify(e?.message ?? String(e), 'down')
     } finally {
       setAiBusy(false)
+    }
+  }
+
+  // ✨ 힌트 헤드라인만 Gemini로 다듬는다 — impact·grade·related·round(숫자·방향)는 안 건드린다.
+  const refineHints = async () => {
+    if (!preview?.derived?.hints?.length) return
+    setHintAiBusy(true)
+    try {
+      const { hints, source, error } = await refineHintHeadlines(preview.derived.hints, namesById)
+      setPreview((p) => (p ? { ...p, derived: { ...p.derived, hints } } : p))
+      if (source === 'gemini') notify('힌트 문장을 AI로 다듬었어요', 'gold')
+      else if (error) notify('AI 힌트 생성 실패 — 템플릿 문장을 유지해요', 'down')
+      else notify('Gemini 키가 없어요 — 위 [Gemini 키]에 붙여넣으세요', 'down')
+    } finally {
+      setHintAiBusy(false)
     }
   }
 
@@ -387,6 +440,37 @@ export default function AdminSimulator({
               : '대회가 진행 중(1라운드 이상, 마지막 라운드 이전)이어야 다음 라운드 생성을 쓸 수 있어요.'}
           </p>
         )}
+      </section>
+
+      <section className="acard">
+        <div className="acard-head">
+          <span className="acap">Gemini 키 (선택 — 속보·힌트 문장용)</span>
+          <span className={keySet ? 'chip ok' : 'chip'}>
+            {keySet ? '키 있음 · AI 문장' : '키 없음 · 규칙 템플릿'}
+          </span>
+        </div>
+        {keySet ? (
+          <button type="button" className="text-btn tiny danger" onClick={removeKey}>
+            키 지우기
+          </button>
+        ) : (
+          <div className="frow two" style={{ alignItems: 'center' }}>
+            <input
+              type="password"
+              placeholder="AIza…  (자기 Gemini API 키)"
+              value={keyInput}
+              autoComplete="off"
+              onChange={(e) => setKeyInput(e.target.value)}
+            />
+            <button type="button" className="text-btn" disabled={!keyInput.trim()} onClick={saveKey}>
+              저장
+            </button>
+          </div>
+        )}
+        <p className="anote">
+          이 브라우저에만 저장돼요(탭 닫으면 사라짐). Google로만 전송되고 파일·서버·다른 사용자에게
+          안 갑니다. 키가 없으면 문장은 규칙 템플릿을 써요 — <b>숫자·방향은 키와 무관하게 항상 정확</b>.
+        </p>
       </section>
 
       <section className="acard">
@@ -565,6 +649,14 @@ export default function AdminSimulator({
                 ) : (
                   <span className="chip warn">불일치 {preview.derived.check.mismatches.length}건</span>
                 )}
+                <button
+                  type="button"
+                  className="text-btn"
+                  disabled={hintAiBusy || !preview.derived.hints.length}
+                  onClick={refineHints}
+                >
+                  {hintAiBusy ? '✨ 다듬는 중…' : '✨ AI로 힌트 문장 다듬기'}
+                </button>
               </div>
               <p className="anote">
                 재무제표 <b>{preview.derived.financials.length}행</b> · 힌트{' '}
