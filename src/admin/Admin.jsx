@@ -161,6 +161,48 @@ export default function Admin({ theme, onToggleTheme }) {
     if (lb.ok) setBoard(lb.rows ?? [])
   }, [actions])
 
+  // 라운드 중엔 학생 체결이 signal을 쏘지 않아 위 refresh가 안 돈다 → 타이머가 열려 있는
+  // 동안만 잔고·순위·거래통계를 가볍게(3쿼리) 폴링한다. 편집용 대용량(재무·시황·힌트)은 안 건드린다.
+  // ponytail: 5초 고정 폴링. 부하가 보이면 간격을 늘리거나 place_order에 조용한 signal을 추가한다.
+  const liveSeq = useRef(0)
+  const refreshLive = useCallback(async () => {
+    const myTurn = ++liveSeq.current
+    let res
+    try {
+      res = await Promise.all([select('game_state', '*'), actions.teamsStatus(), rpc('leaderboard')])
+    } catch (e) {
+      console.error('[admin:refreshLive]', e)
+      return
+    }
+    if (myTurn !== liveSeq.current) return
+    const [g, ts, lb] = res
+    if (g.ok) setGame(g.rows[0] ?? null)
+    if (ts.ok) {
+      setTeams(ts.teams ?? [])
+      setGamePin(ts.game_pin ?? null)
+    }
+    if (lb.ok) setBoard(lb.rows ?? [])
+  }, [actions])
+
+  const roundEndsAt = game?.round_ends_at ? new Date(game.round_ends_at).getTime() : 0
+  const [liveOn, setLiveOn] = useState(false)
+  useEffect(() => {
+    if (!authed || !roundEndsAt || Date.now() >= roundEndsAt) {
+      setLiveOn(false)
+      return
+    }
+    setLiveOn(true)
+    const id = setInterval(() => {
+      if (Date.now() >= roundEndsAt) {
+        clearInterval(id)
+        setLiveOn(false)
+        return
+      }
+      void refreshLive()
+    }, 5000)
+    return () => clearInterval(id)
+  }, [authed, roundEndsAt, refreshLive])
+
   // 저장된 비밀로 자동 로그인
   useEffect(() => {
     let alive = true
@@ -275,7 +317,9 @@ export default function Admin({ theme, onToggleTheme }) {
     optionsContracts,
     analytics,
     pathSources,
+    liveOn,
     refresh,
+    refreshLive,
     notify: pushToast,
     dirty,
     onSaved: () => setDirty(false),
