@@ -4,8 +4,8 @@
 // 나중에 LLM이 교체. 미리보기에 그대로 얹고, 관리자가 확인 후 admin_apply_generated_content
 // 로 반영한다. self-check(hint↔등락 방향)를 같이 돌려 어긋나면 UI가 적용을 막는다.
 
-import { FIN_INPUTS, deriveNextFinancials } from '../metrics'
-import { deriveRoundHints } from '../distribute'
+import { FIN_INPUTS, deriveNextFinancials } from '../metrics.js'
+import { deriveRoundHints } from '../distribute.js'
 
 const CAMEL2DB = Object.fromEntries(FIN_INPUTS.map((m) => [m.key, m.db]))
 const DB2CAMEL = Object.fromEntries(FIN_INPUTS.map((m) => [m.db, m.key]))
