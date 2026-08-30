@@ -114,6 +114,11 @@ select private.set_admin_secret('원하는_비밀');
 - **조 수·시드머니 하드코딩 금지.** 관리자가 화면에서 설정한다. `num_of_team = 7` 같은 상수를 만들지 않는다.
 - **데이터를 고치면 정합성 테스트가 지켜져야 한다.** 특히 뉴스의 호재·악재 태그는 다음 라운드
   실제 등락과 일치해야 한다(`src/data.test.js`). 어긋나면 정직하게 판단한 학생이 손해를 본다.
+  - **주가 생성기로 가격을 바꾸면 재무제표·힌트도 같이 바뀐다.** 미리보기에서 `buildDerivedContent()`
+    (`src/admin/simContent.js`)가 새 가격에 맞춰 재무(`deriveNextFinancials`)·힌트(`deriveRoundHints`)를
+    다시 만들고 self-check가 어긋나면 [적용]을 잠근다. **숫자·방향은 코드로, 문장(헤드라인)만 LLM.**
+    재무 응답 계수는 `DEFAULT_FIN_MODEL`(밸런스 조정 지점). 드리프트 난 데이터셋 보정은
+    `scripts/repair-dataset.mjs`, 임의 DB 감사는 `scripts/audit-dataset.mjs`. 상세 `docs/DECISIONS.md` 2026-08-30.
 - **가격 0 = 거래정지.** 매수·매도 차단, 평가액 0. 0으로 나누는 코드를 만들지 않는다.
 
 ## 환경
