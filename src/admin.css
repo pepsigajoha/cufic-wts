@@ -625,33 +625,36 @@
   margin-right: auto;
 }
 .acap {
-  font-size: 15px;
+  font-size: var(--fs-lg);
   font-weight: 800;
-  letter-spacing: -0.2px;
+  letter-spacing: -0.3px;
   color: var(--text);
 }
 .anote {
-  font-size: 12.5px;
-  line-height: 1.7;
+  font-size: var(--fs-sm);
+  line-height: 1.65;
   color: var(--muted);
 }
 .anote b {
   color: var(--muted);
 }
 .awarn {
-  font-size: 12.5px;
+  font-size: var(--fs-sm);
   font-weight: 700;
-  color: var(--gold);
+  color: var(--warn);
 }
 .aok {
-  font-size: 12.5px;
+  font-size: var(--fs-sm);
   font-weight: 700;
-  color: var(--muted);
+  color: var(--ok);
 }
 .aempty {
-  font-size: 13px;
+  font-size: var(--fs-base);
   color: var(--dim);
-  padding: 16px 0;
+  text-align: center;
+  padding: var(--sp-5) var(--sp-4);
+  border: 1px dashed color-mix(in srgb, var(--line) 70%, transparent);
+  border-radius: var(--r-md);
 }
 
 /* 넓은 표는 카드 안에서 가로 스크롤 (페이지는 스크롤하지 않는다) */
@@ -1801,18 +1804,47 @@
   gap: 6px;
 }
 .chip {
-  font-size: 11.5px;
+  font-size: var(--fs-xs);
   font-weight: 700;
-  padding: 4px 9px;
-  border-radius: 999px;
+  padding: 4px 10px;
+  border-radius: var(--r-pill);
   background: var(--panel-2);
   border: 1px solid var(--line);
   color: var(--muted);
 }
 .chip.on {
-  background: var(--gold);
-  border-color: var(--gold);
-  color: var(--gold-soft);
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--on-gold);
+}
+/* 카드 안의 맨 select (드롭다운) — .frow 밖에서도 일관되게.
+   :where()로 특이도를 0으로 둬 .frow select 등 구체 규칙이 항상 이긴다. */
+:where(.acard) select {
+  background: var(--bg);
+  border: 1.5px solid var(--line);
+  border-radius: var(--r-md);
+  color: var(--text);
+  font-family: inherit;
+  font-size: var(--fs-base);
+  padding: 9px 12px;
+  cursor: pointer;
+  transition: border-color var(--dur-2) var(--ease), box-shadow var(--dur-2) var(--ease);
+}
+:where(.acard) select:focus {
+  outline: 0;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 14%, transparent);
+}
+/* 카드 안 모든 입력 필드의 공통 포커스 링 (특이도 0 — 탭별 규칙이 테두리색은 이겨도 링은 남는다) */
+:where(.acard) input:focus,
+:where(.acard) textarea:focus {
+  outline: 0;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 14%, transparent);
+}
+:where(.acard) input,
+:where(.acard) textarea {
+  transition: border-color var(--dur-2) var(--ease), box-shadow var(--dur-2) var(--ease);
 }
 .chip.warn {
   background: var(--gold-soft);
@@ -1891,26 +1923,35 @@
   min-width: 72px;
 }
 .frow input,
-.frow textarea {
+.frow textarea,
+.frow select {
   background: var(--bg);
   border: 1.5px solid var(--line);
   border-radius: var(--r-md);
   color: var(--text);
   font-family: var(--sans);
-  font-size: 14px;
-  padding: 11px 13px;
+  font-size: var(--fs-md);
+  padding: 10px 13px;
   outline: 0;
   width: 100%;
   resize: vertical;
+  transition: border-color var(--dur-2) var(--ease), box-shadow var(--dur-2) var(--ease);
 }
 .frow input.num {
   font-family: var(--mono);
 }
 .frow input:focus,
-.frow textarea:focus {
-  border-color: var(--gold);
+.frow textarea:focus,
+.frow select:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 14%, transparent);
 }
-.frow input:disabled {
+.frow input::placeholder,
+.frow textarea::placeholder {
+  color: var(--dim);
+}
+.frow input:disabled,
+.frow select:disabled {
   color: var(--dim);
   background: var(--panel-2);
 }
@@ -1920,12 +1961,36 @@
   gap: 2px;
   width: auto;
   flex: 0 0 auto;
+  background: var(--panel-2);
+  border-radius: var(--r-md);
 }
 .tabs.mini button {
+  position: relative;
   flex: 0 0 auto;
-  padding: 6px 12px;
-  font-size: 12px;
+  padding: 6px 13px;
+  font-size: var(--fs-sm);
+  font-weight: 700;
   min-height: 0;
+  color: var(--muted);
+  border-radius: var(--r-sm);
+}
+.tabs.mini button:hover {
+  color: var(--text);
+}
+.tabs.mini button.on {
+  background: var(--panel);
+  color: var(--text);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.2);
+}
+.tabs.mini button.on::after {
+  content: '';
+  position: absolute;
+  left: 9px;
+  right: 9px;
+  bottom: 3px;
+  height: 2px;
+  border-radius: 2px;
+  background: var(--accent);
 }
 .stock-picks {
   display: flex;
