@@ -773,15 +773,15 @@
 .q-block {
   background: var(--panel-2);
   border-radius: var(--r-md);
-  padding: 16px 16px 14px;
+  padding: var(--sp-4) var(--sp-4) 14px;
 }
 .q-block + .q-block {
-  margin-top: 10px;
+  margin-top: var(--sp-2);
 }
 .q-block-h {
   font-weight: 800;
-  font-size: 14px;
-  margin-bottom: 12px;
+  font-size: var(--fs-md);
+  margin-bottom: var(--sp-3);
 }
 .q-dial {
   margin-bottom: 14px;
@@ -791,7 +791,7 @@
 }
 .lbl {
   display: block;
-  font-size: 12px;
+  font-size: var(--fs-sm);
   font-weight: 700;
   color: var(--muted);
   margin-bottom: 6px;
@@ -801,8 +801,8 @@
 .q-mood {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
-  gap: 8px;
-  margin: 16px 0 14px;
+  gap: var(--sp-2);
+  margin: var(--sp-4) 0 14px;
 }
 .q-mood .qm {
   border: 1.5px solid transparent;
@@ -817,22 +817,22 @@
   min-height: 48px;
 }
 .q-mood .qm:hover {
-  border-color: color-mix(in srgb, var(--gold) 30%, var(--line));
+  border-color: color-mix(in srgb, var(--accent) 30%, var(--line));
 }
 .q-mood .qm.on {
-  border-color: var(--gold);
-  background: var(--gold-soft);
+  border-color: var(--accent);
+  background: var(--accent-soft);
 }
 .q-mood .qn {
-  font-size: 10.5px;
+  font-size: var(--fs-2xs);
   color: var(--dim);
   font-weight: 700;
 }
 .q-mood .qm.on .qn {
-  color: var(--gold);
+  color: var(--accent);
 }
 .q-mood .qv {
-  font-size: 13px;
+  font-size: var(--fs-base);
   font-weight: 800;
 }
 
@@ -840,7 +840,7 @@
 .preset-cards {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-  gap: 10px;
+  gap: var(--sp-2);
 }
 .preset-card {
   text-align: left;
@@ -849,19 +849,16 @@
   border-radius: var(--r-md);
   padding: 13px 14px;
   cursor: pointer;
-  transition:
-    border-color 0.12s ease,
-    background 0.12s ease;
 }
 .preset-card:hover {
-  border-color: color-mix(in srgb, var(--gold) 45%, var(--line));
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--line));
 }
 .preset-card .pc-name {
   font-weight: 800;
-  font-size: 13px;
+  font-size: var(--fs-base);
 }
 .preset-card .pc-desc {
-  font-size: 11px;
+  font-size: var(--fs-xs);
   color: var(--muted);
   margin-top: 3px;
   line-height: 1.4;
@@ -869,6 +866,23 @@
 .preset-card svg {
   display: block;
   margin-top: 8px;
+}
+
+/* Gemini 키 카드 — 접기(선택 설정) */
+.sim-gemini > summary {
+  cursor: pointer;
+  list-style: none;
+}
+.sim-gemini > summary::-webkit-details-marker {
+  display: none;
+}
+.sim-gemini > summary .acap::before {
+  content: '▸ ';
+  color: var(--muted);
+  font-weight: 400;
+}
+.sim-gemini[open] > summary .acap::before {
+  content: '▾ ';
 }
 
 /* 조 관리 — 조를 표 대신 소프트 카드로 */
@@ -2308,27 +2322,32 @@
 .sim-dual {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: var(--sp-3);
 }
 .sim-dual input[type='range'] {
   flex: 1;
-  accent-color: var(--gold);
+  accent-color: var(--accent);
 }
 .sim-dual input.num {
   width: 90px;
   flex: 0 0 auto;
 }
 .sim-filters {
-  margin-bottom: 10px;
+  margin-bottom: var(--sp-2);
 }
 .sim-chip {
-  padding: 5px 10px;
-  border-radius: 999px;
+  padding: 6px 12px;
+  border-radius: var(--r-pill);
   border: 1.5px solid var(--line);
   background: var(--panel);
   color: var(--muted);
-  font-size: 12px;
+  font-size: var(--fs-sm);
+  font-weight: 700;
   cursor: pointer;
+}
+.sim-chip:hover {
+  color: var(--text);
+  border-color: color-mix(in srgb, var(--accent) 40%, var(--line));
 }
 .sim-chip.on {
   border-color: var(--chip-color, var(--gold));
@@ -2344,10 +2363,12 @@
   display: block;
 }
 .sim-chart-empty {
-  padding: 24px;
+  padding: var(--sp-5) var(--sp-4);
   text-align: center;
   color: var(--muted);
-  font-size: 13px;
+  font-size: var(--fs-base);
+  border: 1px dashed color-mix(in srgb, var(--line) 70%, transparent);
+  border-radius: var(--r-md);
 }
 .sim-grid {
   stroke: var(--line);

@@ -513,13 +513,13 @@ export default function AdminSimulator({
         )}
       </section>
 
-      <section className="acard">
-        <div className="acard-head">
+      <details className="acard sim-gemini" open={!keySet}>
+        <summary className="acard-head">
           <span className="acap">Gemini 키 (선택 — 속보·힌트 문장용)</span>
           <span className={keySet ? 'chip ok' : 'chip'}>
             {keySet ? '키 있음 · AI 문장' : '키 없음 · 규칙 템플릿'}
           </span>
-        </div>
+        </summary>
         {keySet ? (
           <button type="button" className="text-btn tiny danger" onClick={removeKey}>
             키 지우기
@@ -553,7 +553,7 @@ export default function AdminSimulator({
           사용자에게 안 갑니다. 404가 나면(Google이 모델을 갈아치움) 위 칸에 새 모델명을 넣으세요.
           키가 없으면 문장은 규칙 템플릿 — <b>숫자·방향은 키와 무관하게 항상 정확</b>.
         </p>
-      </section>
+      </details>
 
       <section className="acard">
         <div className="acard-head">
