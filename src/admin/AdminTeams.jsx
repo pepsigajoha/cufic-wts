@@ -166,30 +166,24 @@ export default function AdminTeams({ actions, game, teams, gamePin, refresh, not
               : '등록된 조가 없습니다. [조 추가]로 시작하세요.'}
           </p>
         ) : (
-          <div className="scroller">
-            <table>
-              <thead>
-                <tr>
-                  {!openMode && <th>코드</th>}
-                  <th>이름</th>
-                  <th>시드</th>
-                  <th>예수금</th>
-                  <th>평가금액</th>
-                  <th>수익률</th>
-                  <th>거래</th>
-                  <th>힌트</th>
-                  <th>접속</th>
-                  <th></th>
-                </tr>
-              </thead>
-              <tbody>
-                {teams.map((t) => {
-                  const editing = seedEdit[t.code] !== undefined
-                  return (
-                    <tr key={t.code}>
-                      {!openMode && <td className="num">{t.code}</td>}
-                      <td>{nameCell(t)}</td>
-                      <td className="num">
+          <div className="team-list">
+            {teams.map((t) => {
+              const editing = seedEdit[t.code] !== undefined
+              const ls = loginStatus(t)
+              return (
+                <div key={t.code} className="team-card">
+                  <div className="tc-head">
+                    <span className="tc-name">{nameCell(t)}</span>
+                    {!openMode && <span className="tc-code num">{t.code}</span>}
+                    <span className={'conn ' + ls.cls}>{ls.txt}</span>
+                    <button className="text-btn danger tiny tc-del" onClick={() => setConfirmDel(t)}>
+                      삭제
+                    </button>
+                  </div>
+                  <div className="tc-stats">
+                    <div>
+                      <span className="k">시드</span>
+                      <span className="v num">
                         {started ? (
                           num(t.seed)
                         ) : editing ? (
@@ -213,36 +207,34 @@ export default function AdminTeams({ actions, game, teams, gamePin, refresh, not
                             {num(t.seed)}
                           </button>
                         )}
-                      </td>
-                      <td className="num">{num(t.cash)}</td>
-                      <td className="num">{num(t.equity)}</td>
-                      <td className={'num ' + dirOf(Number(t.pnl))}>
-                        {pct(Number(t.pnl_pct))}
-                        <div className="sub" style={{ color: 'inherit' }}>
-                          {signed(Number(t.pnl))}
-                        </div>
-                      </td>
-                      <td>
-                        {Number(t.trades_this_round) > 0 ? (
-                          <span className="chip ok">{Number(t.trades_this_round)}건</span>
-                        ) : (
-                          <span className="chip">—</span>
-                        )}
-                      </td>
-                      <td className="num">{t.hint_count}</td>
-                      <td>
-                        <span className={'conn ' + loginStatus(t).cls}>{loginStatus(t).txt}</span>
-                      </td>
-                      <td>
-                        <button className="text-btn danger tiny" onClick={() => setConfirmDel(t)}>
-                          삭제
-                        </button>
-                      </td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
+                      </span>
+                    </div>
+                    <div>
+                      <span className="k">예수금</span>
+                      <span className="v num">{num(t.cash)}</span>
+                    </div>
+                    <div>
+                      <span className="k">평가금액</span>
+                      <span className="v num">{num(t.equity)}</span>
+                    </div>
+                    <div>
+                      <span className="k">수익률</span>
+                      <span className={'v num ' + dirOf(Number(t.pnl))}>
+                        {pct(Number(t.pnl_pct))} <em>{signed(Number(t.pnl))}</em>
+                      </span>
+                    </div>
+                    <div>
+                      <span className="k">이번 라운드 거래</span>
+                      <span className="v">{Number(t.trades_this_round) > 0 ? `${t.trades_this_round}건` : '—'}</span>
+                    </div>
+                    <div>
+                      <span className="k">힌트</span>
+                      <span className="v num">{t.hint_count}</span>
+                    </div>
+                  </div>
+                </div>
+              )
+            })}
           </div>
         )}
       </section>

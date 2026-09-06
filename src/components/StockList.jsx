@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { num, pct, dirOf } from '../format'
+import { num, pct, dirOf, arrowOf } from '../format'
 import { execPriceOf } from '../gameData'
 
 // 종목 정렬 옵션. '기본'은 등록 순서(display_order)를 그대로 둔다.
@@ -33,10 +33,15 @@ export default function StockList({ stocks, selectedCode, onSelect, onOpenMy, tr
   // 지금이 몇 번째 "주"인가 — 5스텝마다 1 증가. 플래시 재생의 트리거로 쓴다.
   const weekIdx = Math.floor(Math.max(0, stepIndex) / WEEK_STEPS)
 
+  // 등락률 기준 — 거래 중이면 주간(5스텝), 아니면 전년 대비(YoY). 학생이 "+20%?!"를
+  // 1년치로 오해하지 않도록 목록 상단에 명시한다.
+  const basisLabel = tradingOpen ? '등락 · 주간' : '등락 · 전년 대비'
+
   return (
     <aside className="col stocklist">
       <div className="listhead">
-        <span>종목명</span>
+        <span className="lh-nm">종목</span>
+        <span className="lh-basis">{basisLabel}</span>
         <select
           className="sort-sel"
           value={sort}
@@ -67,12 +72,16 @@ export default function StockList({ stocks, selectedCode, onSelect, onOpenMy, tr
           return (
             <div
               key={s.code}
-              className={'row' + (s.code === selectedCode ? ' on' : '')}
+              className={
+                'row' +
+                (s.code === selectedCode ? ' on' : '') +
+                (s.holding > 0 ? ' held' : '')
+              }
               onClick={() => onSelect(s.code)}
             >
-              <div>
+              <div className="row-nm">
                 <div className="nm">{s.name}</div>
-                {s.holding > 0 && <div className="code">{s.holding}주 보유</div>}
+                {s.holding > 0 && <span className="hold-chip num">보유 {num(s.holding)}주</span>}
               </div>
               {s.halted ? (
                 <div className="pr">
@@ -81,7 +90,13 @@ export default function StockList({ stocks, selectedCode, onSelect, onOpenMy, tr
               ) : (
                 <div key={flashKey} className={'pr ' + dir + (live ? ' wk-flash' : '')}>
                   <div className={'price num ' + dir}>{num(cur)}</div>
-                  <div className={'chg num ' + dir}>{pct(chg)}</div>
+                  {/* 화살표는 .chg 바깥 형제로 둔다 — .chg 텍스트는 "+5.00%" 그대로여야 한다(테스트·판독) */}
+                  <div className="chgrow">
+                    <span className={'arw ' + dir} aria-hidden="true">
+                      {arrowOf(chg)}
+                    </span>
+                    <span className={'chg num ' + dir}>{pct(chg)}</span>
+                  </div>
                 </div>
               )}
             </div>

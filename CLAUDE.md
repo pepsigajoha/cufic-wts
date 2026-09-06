@@ -43,6 +43,9 @@ select private.set_admin_secret('원하는_비밀');
   (예수금·보유 즉시 반영). 단 거래는 **관리자가 [타이머 시작]을 눌러 연 동안에만** 가능하다 —
   `round_ends_at`이 지나면 서버가 거부(`round_closed`)하고 화면 버튼도 잠긴다. `start_round_timer(p_minutes)`가
   마감 시각을 세우고, 진행 중 `adjust_round_timer`로 ±조정한다.
+  - **일시정지(0049).** `pause_round_timer`/`resume_round_timer` + `game_state.round_paused_at`. 정지 중엔
+    카운트다운·`round_step_idx()`가 그 시각에서 얼고 `place_order`는 `round_paused`로 거부. 재개하면 멈춘 만큼
+    시작·마감 시각을 뒤로 밀어 남은 시간이 그대로 이어진다. `is_locked`(연도 넘기기 잠금)와는 **별개 상태** — 섞지 말 것.
   - **타이머 길이 = 게임 설정의 `round_duration_seconds`.** [타이머 시작]은 `startTimer(durMin)`으로 그 값을 실제로 쓴다
     (durMin = `round_duration_seconds/60`, 기본 600초=10분). 진행바 기준값도 이 값이다. **타이머 상수를 하드코딩하지 말 것.**
   - **게임 루프.** 관리자가 **[연도 넘기기]**(`advance_round`)를 누르면 그 라운드 평가금액을
@@ -81,7 +84,7 @@ select private.set_admin_secret('원하는_비밀');
   - **`src/data.js`(생성물)는 "새 DB 초기 템플릿 + 테스트 원천"으로만 남는다.** `seed_*_2025.json` +
     `scripts/build-data.mjs` → `data.js` → `scripts/gen-seed.mjs` → `seed.sql`. 정합성 테스트(`data.test.js`)가 힌트↔주가 방향을 고정.
   - **재무·시황 지표 정의는 `src/metrics.js` 단일 소스.** 재무제표(v4)는 **입력 잎 7개(`FIN_INPUTS`)만 저장**하고
-    자산·부채·자본·영업이익·당기순이익·부채비율·ROE는 **`deriveFinancials()`가 계산**한다(`FIN_DERIVED`가 표시 메타). 시황은 `MACRO_METRICS`(6).
+    자산·부채·자본·영업이익·당기순이익·부채비율·ROE는 **`deriveFinancials()`가 계산**한다(`FIN_DERIVED`가 표시 메타). 시황은 `MACRO_METRICS`(8: 코스피·S&P500·니케이·유럽·기준금리·물가·유가·금 — 0034에서 GDP·실업률·환율을 표시에서 뺐다. 컬럼은 비파괴 보존).
     각 항목이 key(camel)/db(snake)/xlsx(엑셀 열)/label/unit을 들고, 모달·편집기·엑셀 파서·`data.js`가 전부 이걸 참조한다.
     **지표를 늘리거나 이름을 바꿀 땐 여기 한 곳만 고친다. 파생값을 DB/시드/payload에 저장하지 않는다**(계산은 `deriveFinancials` 한 곳). 자본 ≤ 0이면 부채비율·ROE는 null(자본잠식).
 
@@ -130,12 +133,20 @@ select private.set_admin_secret('원하는_비밀');
 - `VITE_ADMIN_PASSWORD` — 관리자 화면. 코드에 하드코딩하지 않는다.
 - `SUPABASE_ACCESS_TOKEN`, `SUPABASE_DB_PASSWORD` — CLI 전용. **진짜 비밀.**
 
-**프로젝트는 하나다** — `cufic_wts` (`zhwidhvoxcoljffvqhol`, 서울). 개발도 대회도 여기서 돈다.
-분리된 개발 DB가 없으므로:
+**Supabase 프로젝트는 둘이다** (2026-08-21 분리):
 
-- 검증용 주문은 **테스트 조 코드(`TEST-XX`)로만** 태운다. 실제 조 데이터를 건드리지 않는다.
-- 마이그레이션이 곧 실서비스에 적용된다. **스키마 변경은 되돌릴 여유가 없다고 보고 신중히.**
-- **대회 전 `reset_game` 초기화 리허설 필수.** 안 하면 학생 화면에 테스트 흔적이 보인다.
+- **개발 DB** — `lynchogququuwihhixrd`. `supabase` CLI(link 대상)와 로컬 `.env`가 지금 여기를 가리킨다.
+  **마이그레이션 0033~0049은 여기에만 적용됐다** (현재 0001~0049 전부).
+- **프로덕션 DB** — `cufic_wts` (`zhwidhvoxcoljffvqhol`, 서울). Vercel 배포가 대시보드 env로 여기를 본다.
+  **현재 0001~0032까지만** 적용. 0033 이후 기능(시황 8지표·주가 생성기·옵션·장중 시세·자동 정합)은 **아직 라이브에 없다.**
+  - ⚠ 로컬엔 `.env`(=dev) 하나뿐이고 prod 값은 `.env.prod-backup`(Vite가 안 읽는 파일명)에 있다.
+    `npm run dev`도 `vite build`도 지금은 dev DB에 붙는다. prod 빌드를 로컬에서 낼 땐 env를 바꿔 끼워야 한다.
+
+따라서:
+
+- 이제 파괴적 검증은 **개발 DB에서** 한다. 프로덕션에는 테스트 조 코드(`TEST-XX`)만.
+- **대회 전 프로덕션에 `db push`(0033~0049) + 재시드 + `reset_game` 리허설 필수.** main push(프론트 재배포)만으로는 스키마가 안 따라온다.
+- 프로덕션 스키마 변경은 되돌릴 여유가 없다고 보고 신중히 — 먼저 개발 DB에서 검증하고 올린다.
 
 ## 대상 기기
 

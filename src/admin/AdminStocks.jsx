@@ -71,49 +71,38 @@ export default function AdminStocks({ actions, game, stocks, refresh, notify }) 
           </p>
         )}
 
-        <div className="scroller">
-          <table>
-            <thead>
-              <tr>
-                <th>종목</th>
-                <th>소개</th>
-                {years.map((y) => (
-                  <th key={y}>
-                    {y}
-                    {y === finalYear && <div className="sub">최종 정산</div>}
-                  </th>
-                ))}
-                <th></th>
-              </tr>
-            </thead>
-            <tbody>
-              {stocks.map((s) => (
-                <tr key={s.id}>
-                  <td>
-                    {s.name}
-                    <div className="sub">{s.id}</div>
-                  </td>
-                  <td className="desc-cell">{s.description || '—'}</td>
-                  {years.map((y) => {
-                    const v = Number(s.prices?.[String(y)] ?? 0)
-                    return (
-                      <td key={y} className="num">
+        <div className="team-list">
+          {stocks.map((s) => (
+            <div key={s.id} className="team-card">
+              <div className="tc-head">
+                <span className="tc-name">{s.name}</span>
+                <span className="tc-code num">{s.id}</span>
+                <span className="tc-desc-inline">{s.description || '—'}</span>
+                <button className="text-btn tiny tc-del" onClick={() => setEditing(s)}>
+                  수정
+                </button>
+                <button className="text-btn danger tiny" onClick={() => setConfirmDel(s)}>
+                  삭제
+                </button>
+              </div>
+              <div className="tc-stats">
+                {years.map((y) => {
+                  const v = Number(s.prices?.[String(y)] ?? 0)
+                  return (
+                    <div key={y}>
+                      <span className="k">
+                        {y}
+                        {y === finalYear ? ' 최종' : ''}
+                      </span>
+                      <span className="v num">
                         {v > 0 ? num(v) : <span className="halted-tag">정지</span>}
-                      </td>
-                    )
-                  })}
-                  <td>
-                    <button className="text-btn tiny" onClick={() => setEditing(s)}>
-                      수정
-                    </button>
-                    <button className="text-btn danger tiny" onClick={() => setConfirmDel(s)}>
-                      삭제
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+                      </span>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          ))}
         </div>
       </section>
 

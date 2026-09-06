@@ -106,19 +106,25 @@ export default function QtyStepper({ value, onChange, max, label, maxLabel = '�
 // 비율 버튼. 시드가 1억이면 최대 1,000주가 넘어서 −/+로는 감당이 안 된다.
 const RATIOS = [0.1, 0.25, 0.5, 1]
 
-export function QtyRatios({ max, onPick, maxLabel = '최대', disabled = false, onBlocked }) {
+export function QtyRatios({ max, value = 0, onPick, maxLabel = '최대', disabled = false, onBlocked }) {
   const blocked = max <= 0 // 잠금은 아니지만 살/팔 수량이 0 (예수금 부족 등)
   return (
     <div className={'ratios' + (disabled ? ' locked' : '')}>
-      {RATIOS.map((r) => (
-        <button
-          key={r}
-          onClick={() => (blocked ? onBlocked?.() : onPick(r === 1 ? max : Math.floor(max * r)))}
-          disabled={disabled}
-        >
-          {r === 1 ? maxLabel : `${r * 100}%`}
-        </button>
-      ))}
+      {RATIOS.map((r) => {
+        const target = r === 1 ? max : Math.floor(max * r)
+        const on = !blocked && value > 0 && target === value
+        return (
+          <button
+            key={r}
+            className={on ? 'on' : ''}
+            aria-pressed={on}
+            onClick={() => (blocked ? onBlocked?.() : onPick(target))}
+            disabled={disabled}
+          >
+            {r === 1 ? maxLabel : `${r * 100}%`}
+          </button>
+        )
+      })}
     </div>
   )
 }

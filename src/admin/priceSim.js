@@ -159,7 +159,8 @@ export class MarketSim {
     this.prevMacro = defaultMacro()
   }
 
-  /** 하루(1스텝) 전진. macro는 그 스텝의 7대 거시지표, params는 엔진 파라미터. */
+  /** 하루(1스텝) 전진. macro는 그 스텝의 7대 거시지표, params는 엔진 파라미터.
+   *  분기별 시뮬레이션은 이 macro 인자를 63일마다 바꿔 넣는 식으로 구현한다(step은 몰라도 된다). */
   step(macro, params) {
     const { baseMu, weights = defaultWeights(), garch, thresholds, jump } = params
     const dt = 1 / 252
@@ -260,6 +261,34 @@ export class MarketSim {
   }
 }
 
+// ---------- 4-b. 분기(63일) 거시 파라미터 ----------
+// 한 라운드(=1년=stepsPerYear일)를 4등분해, 각 63일 구간에서 거시 7요인(macro)을 통째로 교체한다.
+// step()의 shock(Δ)/gravity(절대치) 로직이 그대로 돌아가므로 "Q2에 금리 급등 + GDP 역성장" 같은
+// 입력이 그 분기 첫날 큰 Δ 충격 + (임계치 초과 시) 변동성 자동 급등으로 이어진다 — 별도 위기 코드 없음.
+// quarters 미지정 시 아무 동작도 하지 않아 기존 결과와 100% 동일하다.
+
+function assertQuarters(quarters) {
+  if (quarters == null) return
+  if (!Array.isArray(quarters) || quarters.length !== 4) {
+    throw new Error('quarters는 길이 4의 배열이어야 합니다 (1~4분기)')
+  }
+  for (const q of quarters) {
+    if (!q || typeof q.macro !== 'object' || q.macro === null) {
+      throw new Error('각 분기는 macro 객체(거시 7요인)를 가져야 합니다')
+    }
+  }
+}
+
+/** quarters(있으면) → 분기별 완전 병합 macro 4개를 미리 만든다(스텝마다 defaultMacro 병합 반복 방지). */
+function buildQuarterMacros(quarters) {
+  return quarters ? quarters.map((q) => ({ ...defaultMacro(), ...q.macro })) : null
+}
+
+/** step 인덱스(1..stepsPerYear) → 그 스텝이 속한 분기 0..3. */
+function quarterIndexOf(step, stepsPerYear) {
+  return Math.min(3, Math.floor(((step - 1) * 4) / stepsPerYear))
+}
+
 // ---------- 5. WTS `stocks.prices` jsonb 스키마로 직접 출력하는 최상위 함수 ----------
 /**
  * { [stockId]: { [year]: integer } } 를 생성한다 — admin_apply_simulated_prices의
@@ -291,6 +320,7 @@ export function generatePriceSeries(config) {
     correlation = 0.4,
     betaFx, // 종목별 환율 섹터 베타(길이=stockIds.length). 미지정 시 전 종목 0(중립).
     betaOil, // 종목별 유가 섹터 베타. 미지정 시 전 종목 0(중립).
+    quarters, // 선택: [{macro, ...}×4] — 지정 시 63일마다 거시 7요인 교체(전 연도 동일 적용). macroByYear보다 우선.
     onQuarter, // 선택: (year, quarterIndex 0~3, pricesSnapshot) => void
     returnPath = false, // true면 연도별 stepsPerYear개 전체 경로를 돌려준다(엔진 트랙 저장용)
   } = config
@@ -301,6 +331,8 @@ export function generatePriceSeries(config) {
   if (!Array.isArray(years) || years.length === 0) {
     throw new Error('years는 비어있지 않은 배열이어야 합니다')
   }
+  assertQuarters(quarters)
+  const qMacros = buildQuarterMacros(quarters)
 
   const sim = new MarketSim({ seed, startPrice, nCompanies: stockIds.length, correlation, betaFx, betaOil })
   const result = {}
@@ -314,7 +346,8 @@ export function generatePriceSeries(config) {
     let prices = sim.price
     let quarterIndex = 0
     for (let s = 1; s <= stepsPerYear; s++) {
-      prices = sim.step(macro, { baseMu, weights, garch, thresholds, jump })
+      const stepMacro = qMacros ? qMacros[quarterIndexOf(s, stepsPerYear)] : macro
+      prices = sim.step(stepMacro, { baseMu, weights, garch, thresholds, jump })
       if (yearPaths) for (let i = 0; i < stockIds.length; i++) yearPaths[i].push(Math.max(0, Math.round(prices[i])))
       if (onQuarter && quarterIndex < 4 && s >= quarterCheckpoints[quarterIndex]) {
         onQuarter(year, quarterIndex, prices.slice())
@@ -360,6 +393,7 @@ export function simulateNextRound(config) {
     correlation = 0.4,
     betaFx,
     betaOil,
+    quarters, // 선택: [{macro, ...}×4] — 지정 시 63일마다 거시 7요인 교체. macro(단일)보다 우선.
     onQuarter, // 선택: (quarterIndex 0~3, pricesSnapshot) => void
     returnPath = false, // true면 스텝별 전체 경로를 돌려준다(장중 거래용 저장)
   } = config
@@ -367,6 +401,8 @@ export function simulateNextRound(config) {
   if (!Array.isArray(stockIds) || stockIds.length === 0) {
     throw new Error('stockIds는 비어있지 않은 배열이어야 합니다')
   }
+  assertQuarters(quarters)
+  const qMacros = buildQuarterMacros(quarters)
 
   const startPrices = stockIds.map((id) => Number(currentPrices?.[id]) || startPrice)
   const sim = new MarketSim({ seed, startPrices, nCompanies: stockIds.length, correlation, betaFx, betaOil })
@@ -377,7 +413,8 @@ export function simulateNextRound(config) {
   let prices = sim.price
   let quarterIndex = 0
   for (let s = 1; s <= stepsPerYear; s++) {
-    prices = sim.step(macroFull, { baseMu, weights, garch, thresholds, jump })
+    const stepMacro = qMacros ? qMacros[quarterIndexOf(s, stepsPerYear)] : macroFull
+    prices = sim.step(stepMacro, { baseMu, weights, garch, thresholds, jump })
     if (paths) for (let i = 0; i < stockIds.length; i++) paths[i].push(Math.max(0, Math.round(prices[i])))
     if (onQuarter && quarterIndex < 4 && s >= quarterCheckpoints[quarterIndex]) {
       onQuarter(quarterIndex, prices.slice())

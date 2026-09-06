@@ -80,6 +80,8 @@ export function makeAdminActions(getSecret) {
     advanceRound: () => call('advance_round'),
     startTimer: (minutes) => call('start_round_timer', { p_minutes: minutes ?? null }),
     adjustTimer: (deltaSeconds) => call('adjust_round_timer', { p_delta_seconds: deltaSeconds }),
+    pauseTimer: () => call('pause_round_timer'), // 거래 타이머 일시정지 (0049)
+    resumeTimer: () => call('resume_round_timer'), // 재개 — 멈춘 만큼 마감 시각을 뒤로 민다
     endGame: () => call('admin_end_game'),
     resetGame: () => call('reset_game'),
 
@@ -133,6 +135,13 @@ export function makeAdminActions(getSecret) {
         p_hints: hints,
         p_replace_hint_rounds: replaceRounds,
       }),
+
+    // 분기별(63일) 파라미터·이벤트 (0048) — round_quarter_configs.
+    // quarters = [{quarter,drift,volatility,eventNews,hintText} × 4] (src/quarters.js QuarterConfig)
+    listRoundQuarterConfigs: () => call('admin_list_round_quarter_configs'),
+    upsertRoundQuarterConfig: (round, quarters) =>
+      call('admin_upsert_round_quarter_config', { p_round: round, p_quarters: quarters }),
+    deleteRoundQuarterConfig: (round) => call('admin_delete_round_quarter_config', { p_round: round }),
 
     // 콘텐츠(B): 재무제표·시황 편집
     upsertMacro: (m) =>

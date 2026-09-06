@@ -1,4 +1,5 @@
 import { PRNG } from './priceSim'
+import { macroFromLevels } from './macroLevels'
 
 // 프리셋: 7요인을 한 번에 채운다. fx/oil은 종목마다 다른 베타로 반응하므로
 // "훈풍/역풍"이 아니라 섹터별로 희비가 갈리는 충격으로 이해해야 한다.
@@ -26,6 +27,49 @@ export const PRESETS = [
     sent: 60,
     fx: 1550,
     oil: 120,
+  },
+]
+
+// 분기별(63거래일) 거시 시나리오 프리셋 — 세 손잡이(경기/금리·물가/대외)의 레벨 id로 정의한다.
+// 그래야 불러왔을 때 세그먼트가 딱 맞게 켜지고 요약 스트립도 "나쁨/좋음"으로 읽힌다.
+// cycle: crash|bad|ok|good|boom · rates: ease|neutral|tight|shock · external: calm|strain|shock
+const q = (quarter, levels, eventNews = '', hintText = '') => ({
+  quarter,
+  macro: macroFromLevels(levels),
+  eventNews,
+  hintText,
+})
+
+export const QUARTER_PRESETS = [
+  {
+    key: 'steady-growth',
+    label: '완만한 성장장',
+    quarters: [q(1, { cycle: 'ok' }), q(2, { cycle: 'good' }), q(3, { cycle: 'good' }), q(4, { cycle: 'good' })],
+  },
+  {
+    key: 'q2-crisis-q4-rebound',
+    label: '2분기 금융위기 충격 · 4분기 반등',
+    quarters: [
+      q(1, { cycle: 'ok', rates: 'tight' }),
+      q(2, { cycle: 'crash', rates: 'shock', external: 'shock' }, '금리 급등·경기 침체 — 시장 전반 급락'),
+      q(3, { cycle: 'bad', rates: 'tight', external: 'strain' }),
+      q(4, { cycle: 'good', rates: 'neutral' }, '정책 대응에 반등 국면 진입'),
+    ],
+  },
+  {
+    key: 'box-range',
+    label: '박스권 횡보장',
+    quarters: [q(1, { cycle: 'bad' }), q(2, { cycle: 'ok' }), q(3, { cycle: 'bad' }), q(4, { cycle: 'ok' })],
+  },
+  {
+    key: 'slow-bear',
+    label: '완만한 하락장',
+    quarters: [
+      q(1, { cycle: 'ok', rates: 'tight' }),
+      q(2, { cycle: 'bad', rates: 'tight' }),
+      q(3, { cycle: 'bad', rates: 'tight' }),
+      q(4, { cycle: 'bad', rates: 'neutral' }),
+    ],
   },
 ]
 

@@ -34,6 +34,13 @@ describe('roundStepIndex — 라운드 진행률 → 스텝(0..251) [SQL private
     expect(roundStepIndex(g(T0, T0 + 600_000, { is_locked: true }), T0 + 60_000)).toBe(251)
   })
 
+  it('일시정지(round_paused_at) 중이면 그 시각 진행률에서 얼린다 (now가 흘러도 불변)', () => {
+    const paused = g(T0, T0 + 600_000, { round_paused_at: new Date(T0 + 150_000).toISOString() })
+    // now가 300s(절반)든 590s든, paused=150s(1/4) 시점 스텝 63으로 고정
+    expect(roundStepIndex(paused, T0 + 300_000)).toBe(63)
+    expect(roundStepIndex(paused, T0 + 590_000)).toBe(63)
+  })
+
   it('날짜가 깨졌거나 span<=0이어도 죽지 않고 251', () => {
     expect(roundStepIndex({ round_start_at: 'nope', round_ends_at: 'nan' }, T0)).toBe(251)
     expect(roundStepIndex(g(T0 + 600_000, T0), T0 + 60_000)).toBe(251)

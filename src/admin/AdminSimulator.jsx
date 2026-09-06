@@ -4,7 +4,11 @@ import { errorText } from '../supabase'
 import { num, pct, dirOf } from '../format'
 import { generatePriceSeries, simulateNextRound, defaultMacro } from './priceSim'
 import { classifySector, buildSectorPalette } from './sectorTaxonomy'
-import { PRESETS, deriveSectorBetas } from './simulatorPresets'
+import { PRESETS, QUARTER_PRESETS, deriveSectorBetas } from './simulatorPresets'
+import { MACRO_FIELDS } from './macroFields'
+import { defaultQuarterConfigs, isValidQuarterConfigs, normalizeQuarterConfigs } from './quarterConfig'
+import Segmented from './Segmented'
+import { MACRO_DIALS, activeLevelId, quarterMood } from './macroLevels'
 import { generateMacroNews } from './macroNews'
 import { generateBreakingNews } from './newsService'
 import { refineHintHeadlines } from './hintService'
@@ -24,16 +28,6 @@ function loadPersisted() {
   }
 }
 
-const MACRO_FIELDS = [
-  { key: 'int_r', label: '기준금리 (%)', min: 0, max: 10, step: 0.25 },
-  { key: 'unemp', label: '실업률 (%)', min: 1, max: 15, step: 0.1 },
-  { key: 'inf', label: '물가상승률 CPI (%)', min: -2, max: 20, step: 0.5 },
-  { key: 'gdp', label: 'GDP 성장률 (%)', min: -5, max: 15, step: 0.5 },
-  { key: 'sent', label: '소비심리 지수', min: 0, max: 100, step: 1 },
-  { key: 'fx', label: '원/달러 환율 (원)', min: 1000, max: 1800, step: 10 },
-  { key: 'oil', label: '국제유가 ($)', min: 20, max: 160, step: 1 },
-]
-
 // 여러 속보 후보를 한 세트(제목 1개 + 본문 1개)로 합친다. broadcasts 테이블이 한 줄짜리
 // headline 컬럼 하나뿐이라(별도 body 컬럼 없음), 실제 발행 시엔 이 둘을 합쳐서 보낸다.
 function composeNews(items) {
@@ -42,6 +36,28 @@ function composeNews(items) {
     headline: items.map((it) => it.headline).join(' · '),
     body: items.map((it, i) => `[${i + 1}] ${it.headline}\n${it.body}`).join('\n\n'),
   }
+}
+
+// 스토리 프리셋 한 줄 설명 (QUARTER_PRESETS의 key로)
+const PRESET_DESC = {
+  'steady-growth': '분기마다 조금씩 우상향',
+  'q2-crisis-q4-rebound': '2분기 급락 → 4분기 반등',
+  'box-range': '오르락내리락, 제자리',
+  'slow-bear': '분기 갈수록 서서히 하락',
+}
+
+/** 프리셋/현재 4분기의 대략 모양(GDP 기준)을 미니 라인으로. */
+function QuarterSpark({ quarters, stroke = 'var(--gold)' }) {
+  const g = quarters.map((q) => Number(q?.macro?.gdp ?? 3))
+  const lo = Math.min(...g, -2)
+  const hi = Math.max(...g, 7)
+  const y = (v) => 17 - ((v - lo) / (hi - lo || 1)) * 15
+  const pts = g.map((v, i) => `${2 + i * 18},${y(v).toFixed(1)}`).join(' ')
+  return (
+    <svg width="60" height="20" viewBox="0 0 60 20" aria-hidden="true">
+      <polyline points={pts} fill="none" stroke={stroke} strokeWidth="1.6" strokeLinejoin="round" />
+    </svg>
+  )
 }
 
 /** 주가 생성기 탭. 7요인 확률과정 엔진으로 라운드별 가격을 생성해 미리보고, 확인 후에만 반영한다. */
@@ -82,6 +98,13 @@ export default function AdminSimulator({
     const s = loadPersisted().seed
     return Number.isFinite(s) ? s : 42
   })
+  // 분기별(63일) 파라미터 — 켜면 매 연도 4분기 경계에서 거시 7요인을 통째로 교체한다. 기본 off(기존 동작 유지).
+  const [useQuarters, setUseQuarters] = useState(() => loadPersisted().useQuarters === true)
+  const [quarters, setQuarters] = useState(() => {
+    const q = loadPersisted().quarters
+    return isValidQuarterConfigs(q) ? q : defaultQuarterConfigs()
+  })
+  const [qSel, setQSel] = useState(0) // 지금 편집 중인 분기(0..3)
   const [preview, setPreview] = useState(null) // { prices, applyPrices, displayYears, forecastYears, betaFx, betaOil }
   const [visible, setVisible] = useState(() => new Set(stockIds))
   const [busy, setBusy] = useState(false)
@@ -132,15 +155,29 @@ export default function AdminSimulator({
   // 탭을 벗어났다 돌아와도 슬라이더 값이 그대로이도록 바뀔 때마다 저장한다.
   useEffect(() => {
     try {
-      sessionStorage.setItem(STORAGE_KEY, JSON.stringify({ macro, seed, mode }))
+      sessionStorage.setItem(STORAGE_KEY, JSON.stringify({ macro, seed, mode, useQuarters, quarters }))
     } catch {
       /* 무시 */
     }
-  }, [macro, seed, mode])
+  }, [macro, seed, mode, useQuarters, quarters])
 
   const setField = (key, v) => setMacro((m) => ({ ...m, [key]: v }))
   const applyPreset = (p) =>
     setMacro({ unemp: p.unemp, gdp: p.gdp, int_r: p.int_r, inf: p.inf, sent: p.sent, fx: p.fx, oil: p.oil })
+
+  // 분기 편집 — 거시 7요인은 q.macro 안에, 속보/힌트는 q 위에.
+  const setQMacro = (idx, key, v) =>
+    setQuarters((qs) => qs.map((q, i) => (i === idx ? { ...q, macro: { ...q.macro, [key]: v } } : q)))
+  const mergeQMacro = (idx, patch) =>
+    setQuarters((qs) => qs.map((q, i) => (i === idx ? { ...q, macro: { ...q.macro, ...patch } } : q)))
+  const setQField = (idx, key, v) =>
+    setQuarters((qs) => qs.map((q, i) => (i === idx ? { ...q, [key]: v } : q)))
+  const fillFromQ1 = () =>
+    setQuarters((qs) => qs.map((q, i) => (i === 0 ? q : { ...q, macro: { ...qs[0].macro } })))
+  const loadQuarterPreset = (p) => setQuarters(normalizeQuarterConfigs(p.quarters))
+  // 엔진·서버에 넘길 분기 세트 — 켜져 있고 형식이 맞을 때만. 아니면 undefined(기존 단일 레짐).
+  const activeQuarters = useQuarters && isValidQuarterConfigs(quarters) ? quarters : undefined
+
   const resetToDefaults = () => {
     setMacro(defaultMacro())
     setSeed(42)
@@ -153,7 +190,9 @@ export default function AdminSimulator({
   const deriveContent = (prices, regenYears) => {
     const macroByYear = {}
     for (const m of macroRows) macroByYear[Number(m.year)] = { rate: Number(m.rate), cpi: Number(m.cpi) }
-    for (const y of regenYears) macroByYear[y] = { rate: Number(macro.int_r), cpi: Number(macro.inf) }
+    // 재무 파생에 쓸 연말 금리·물가: 분기 사용 중이면 마지막 분기(Q4)=연말 상태, 아니면 단일 슬라이더.
+    const yrEnd = activeQuarters ? activeQuarters[3].macro : macro
+    for (const y of regenYears) macroByYear[y] = { rate: Number(yrEnd.int_r), cpi: Number(yrEnd.inf) }
     return buildDerivedContent({
       prices,
       stocks,
@@ -174,7 +213,16 @@ export default function AdminSimulator({
       )
       try {
         // returnPath: 스텝 252개의 전체 경로. 마지막 원소가 그 연도의 확정가(연말값)다.
-        const nextPaths = simulateNextRound({ stockIds, currentPrices, macro, seed, betaFx, betaOil, returnPath: true })
+        const nextPaths = simulateNextRound({
+          stockIds,
+          currentPrices,
+          macro,
+          seed,
+          betaFx,
+          betaOil,
+          quarters: activeQuarters,
+          returnPath: true,
+        })
         const nextPrices = Object.fromEntries(
           stockIds.map((id) => [id, nextPaths[id][nextPaths[id].length - 1]]),
         )
@@ -237,6 +285,7 @@ export default function AdminSimulator({
         macroByYear,
         betaFx,
         betaOil,
+        quarters: activeQuarters,
         returnPath: true,
       })
       // 미리보기·표는 각 경로의 끝값(연말 종가)만 쓴다
@@ -316,6 +365,8 @@ export default function AdminSimulator({
     const n = (r.scalar_applied ?? 0) || (r.paths_applied ?? 0) || stockIds.length
     notify(`${n}개 종목 가격을 반영했어요${r.paths_applied ? ` (장중 경로 ${r.paths_applied}종목)` : ''}`, 'gold')
     await applyDerived()
+    // 전체 라운드 일괄 모드 — 같은 4분기 레짐을 전 라운드에 저장
+    await persistQuarters(Object.keys(game?.round_year_map ?? {}).map(Number).filter(Boolean))
     setPreview(null)
     await refresh()
   }
@@ -328,6 +379,19 @@ export default function AdminSimulator({
     const gc = await actions.applyGeneratedContent(d.financials, d.hints, d.replaceRounds)
     if (!gc.ok) notify('가격은 됐지만 재무·힌트 반영 실패: ' + errorText(gc.error), 'down')
     else notify(`재무 ${gc.financials}행 · 힌트 ${gc.hints}개도 반영했어요`, 'gold')
+  }
+
+  // 분기 파라미터·속보·힌트를 라운드별로 서버에 저장한다(round_quarter_configs, 0048).
+  // 학생 화면 get_quarter_events()가 이걸 읽어 장중 분기 전환 시 토스트를 띄운다.
+  // [사용]이 꺼져 있으면 아무것도 저장하지 않는다(이번 라운드 분기 config를 지우진 않는다 — 필요하면 관리자가 명시적으로).
+  const persistQuarters = async (rounds) => {
+    if (!activeQuarters || typeof actions.upsertRoundQuarterConfig !== 'function') return
+    let failed = 0
+    for (const r of rounds) {
+      const res = await actions.upsertRoundQuarterConfig(r, activeQuarters)
+      if (!res.ok) failed += 1
+    }
+    if (failed) notify(`분기 설정 저장 일부 실패 (${failed}개 라운드) — 0048 마이그레이션 확인`, 'down')
   }
 
   // 다음 라운드 적용 + 속보 발행. DB 트랜잭션 하나가 아니라 RPC 3번(백업→가격 적용→속보)을
@@ -360,6 +424,8 @@ export default function AdminSimulator({
     const sent = broadcastText.trim() ? await actions.sendBroadcast(broadcastText) : { ok: true }
 
     await applyDerived()
+    // 다음 라운드만 — 그 라운드에 분기 레짐 저장
+    await persistQuarters([nextRoundNumber])
 
     setBusy(false)
     setConfirmApplyNews(false)
@@ -502,64 +568,214 @@ export default function AdminSimulator({
         </div>
       </section>
 
-      <section className="acard">
-        <div className="acard-head">
-          <span className="acap">거시 파라미터 ({mode === 'batch' ? '전 라운드 동일 적용' : '다음 라운드에 적용'})</span>
-          <button type="button" className="text-btn tiny" onClick={resetToDefaults}>
-            🔄 기본값으로 초기화
-          </button>
-        </div>
-        <div className="form">
-          {MACRO_FIELDS.map((f) => (
-            <div key={f.key} className="frow col">
-              <label htmlFor={`sim-${f.key}`}>{f.label}</label>
-              <div className="sim-dual">
-                <input
-                  type="range"
-                  aria-label={`${f.label} (슬라이더)`}
-                  min={f.min}
-                  max={f.max}
-                  step={f.step}
-                  value={macro[f.key]}
-                  onChange={(e) => setField(f.key, Number(e.target.value))}
+      <section className="acard toss">
+        <p className="toss-h">시장 흐름 설정</p>
+        <p className="toss-sub">
+          경기·금리·대외 여건만 고르면 나머지 흔들림은 엔진이 알아서 만들어요.
+          {mode === 'batch' ? ' 전 라운드에 같은 흐름이 적용됩니다.' : ' 다음 라운드에 적용됩니다.'}
+        </p>
+
+        <Segmented
+          size="sm"
+          ariaLabel="흐름 방식"
+          options={[
+            { id: 'one', label: '라운드 내내 한 흐름' },
+            { id: 'four', label: '분기마다 바뀜' },
+          ]}
+          value={useQuarters ? 'four' : 'one'}
+          onChange={(v) => setUseQuarters(v === 'four')}
+        />
+
+        {!useQuarters ? (
+          /* ── 라운드 내내 한 흐름 ── */
+          <div style={{ marginTop: 18 }}>
+            {MACRO_DIALS.map((d) => (
+              <div key={d.key} className="q-dial">
+                <span className="lbl">{d.label}</span>
+                <Segmented
+                  ariaLabel={d.label}
+                  options={d.levels}
+                  value={activeLevelId(d, macro)}
+                  onChange={(id) => setMacro((m) => ({ ...m, ...d.levels.find((l) => l.id === id).macro }))}
                 />
+                <div className="toss-num">{d.fmt(macro)}</div>
+              </div>
+            ))}
+            <button type="button" className="text-btn tiny" onClick={resetToDefaults}>
+              처음값으로
+            </button>
+            <details style={{ marginTop: 6 }}>
+              <summary className="text-btn tiny">숫자로 직접 (슬라이더)</summary>
+              <div className="form" style={{ marginTop: 10 }}>
+                {MACRO_FIELDS.map((f) => (
+                  <div key={f.key} className="frow col">
+                    <label htmlFor={`sim-${f.key}`}>{f.label}</label>
+                    <div className="sim-dual">
+                      <input
+                        type="range"
+                        aria-label={`${f.label} (슬라이더)`}
+                        min={f.min}
+                        max={f.max}
+                        step={f.step}
+                        value={macro[f.key]}
+                        onChange={(e) => setField(f.key, Number(e.target.value))}
+                      />
+                      <input
+                        id={`sim-${f.key}`}
+                        className="num"
+                        type="number"
+                        min={f.min}
+                        max={f.max}
+                        step={f.step}
+                        value={macro[f.key]}
+                        onChange={(e) => setField(f.key, Number(e.target.value))}
+                      />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </details>
+          </div>
+        ) : (
+          /* ── 분기마다 바뀜 ── */
+          <div style={{ marginTop: 16 }}>
+            <p className="lbl" style={{ marginBottom: 8 }}>빠른 시작 — 이야기를 고르세요</p>
+            <div className="preset-cards">
+              {QUARTER_PRESETS.map((p) => (
+                <button key={p.key} type="button" className="preset-card" onClick={() => loadQuarterPreset(p)}>
+                  <div className="pc-name">{p.label}</div>
+                  <div className="pc-desc">{PRESET_DESC[p.key] ?? ''}</div>
+                  <QuarterSpark quarters={p.quarters} />
+                </button>
+              ))}
+            </div>
+
+            {/* 4분기 요약 = 분기 선택기 */}
+            <div className="q-mood">
+              {quarters.map((q, i) => (
+                <button
+                  key={i}
+                  type="button"
+                  className={'qm' + (qSel === i ? ' on' : '')}
+                  onClick={() => setQSel(i)}
+                >
+                  <span className="qn">
+                    Q{i + 1} · {i * 3 + 1}~{i * 3 + 3}월
+                  </span>
+                  <span className="qv">{quarterMood(q.macro)}</span>
+                </button>
+              ))}
+            </div>
+
+            {/* 선택 분기 손잡이 */}
+            <div className="q-block">
+              <div className="q-block-h">
+                Q{qSel + 1} · {qSel * 3 + 1}~{qSel * 3 + 3}월
+              </div>
+              {MACRO_DIALS.map((d) => (
+                <div key={d.key} className="q-dial">
+                  <span className="lbl">{d.label}</span>
+                  <Segmented
+                    ariaLabel={`Q${qSel + 1} ${d.label}`}
+                    options={d.levels}
+                    value={activeLevelId(d, quarters[qSel].macro)}
+                    onChange={(id) => mergeQMacro(qSel, d.levels.find((l) => l.id === id).macro)}
+                  />
+                  <div className="toss-num">{d.fmt(quarters[qSel].macro)}</div>
+                </div>
+              ))}
+              <div className="q-dial">
+                <span className="lbl">이 분기 시작에 뜨는 속보 (선택)</span>
                 <input
-                  id={`sim-${f.key}`}
-                  className="num"
-                  type="number"
-                  min={f.min}
-                  max={f.max}
-                  step={f.step}
-                  value={macro[f.key]}
-                  onChange={(e) => setField(f.key, Number(e.target.value))}
+                  aria-label={`Q${qSel + 1} 분기 속보`}
+                  placeholder="예: 금리 급등·경기 침체 — 시장 전반 급락"
+                  value={quarters[qSel].eventNews}
+                  onChange={(e) => setQField(qSel, 'eventNews', e.target.value)}
                 />
               </div>
-            </div>
-          ))}
-          <div className="frow col">
-            <label htmlFor="sim-seed">시드 (재현성)</label>
-            <div style={{ display: 'flex', gap: 6 }}>
-              <input
-                id="sim-seed"
-                className="num"
-                type="number"
-                value={seed}
-                onChange={(e) => setSeed(Number(e.target.value) || 0)}
-              />
-              <button
-                type="button"
-                className="text-btn tiny"
-                onClick={() => setSeed(Math.floor(Math.random() * 1_000_000_000))}
-              >
-                🎲 시드 재생성 (난수 셔플)
+              <div className="q-dial">
+                <span className="lbl">이 분기 힌트 (선택)</span>
+                <input
+                  aria-label={`Q${qSel + 1} 분기 힌트`}
+                  placeholder="예: 방어적으로 접근하세요"
+                  value={quarters[qSel].hintText}
+                  onChange={(e) => setQField(qSel, 'hintText', e.target.value)}
+                />
+              </div>
+              <button type="button" className="text-btn tiny" onClick={fillFromQ1}>
+                Q1 흐름을 전 분기에 복사
               </button>
             </div>
+
+            <details style={{ marginTop: 12 }}>
+              <summary className="text-btn tiny">정밀 조정 — 숫자로 직접</summary>
+              <div className="scroller" style={{ marginTop: 10 }}>
+                <table className="q-grid">
+                  <thead>
+                    <tr>
+                      <th></th>
+                      {quarters.map((q, i) => (
+                        <th key={q.quarter}>
+                          Q{q.quarter}
+                          <div className="sub">
+                            {i * 3 + 1}~{i * 3 + 3}월
+                          </div>
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {MACRO_FIELDS.map((f) => (
+                      <tr key={f.key}>
+                        <th scope="row">{f.short}</th>
+                        {quarters.map((q, i) => (
+                          <td key={i}>
+                            <input
+                              className="num"
+                              type="number"
+                              aria-label={`Q${i + 1} ${f.label}`}
+                              min={f.min}
+                              max={f.max}
+                              step={f.step}
+                              value={q.macro[f.key]}
+                              onChange={(e) => setQMacro(i, f.key, Number(e.target.value))}
+                            />
+                          </td>
+                        ))}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </details>
+
+            <p className="anote" style={{ marginTop: 12 }}>
+              63거래일마다 그 분기 흐름으로 통째로 바뀝니다 — 가격은 이어지고(점프 없음), 연말값은 그대로 확정가.
+              [적용] 시 학생 화면은 분기가 넘어갈 때 그 속보·힌트를 토스트로 봅니다.
+            </p>
+          </div>
+        )}
+
+        {/* 시드 — 두 모드 공통 */}
+        <div className="q-dial" style={{ marginTop: 18 }}>
+          <span className="lbl">시드 · 같은 값이면 같은 결과</span>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <input
+              id="sim-seed"
+              className="num"
+              type="number"
+              value={seed}
+              onChange={(e) => setSeed(Number(e.target.value) || 0)}
+            />
+            <button
+              type="button"
+              className="text-btn tiny"
+              onClick={() => setSeed(Math.floor(Math.random() * 1_000_000_000))}
+            >
+              🎲 새로 섞기
+            </button>
           </div>
         </div>
-        <p className="anote">
-          환율·유가는 종목마다 시드로부터 자동 생성된 민감도(섹터 베타)에 따라 다르게 반응합니다. 나머지 5개
-          지표는 전 종목에 동일하게 적용됩니다.
-        </p>
       </section>
 
       <section className="acard">

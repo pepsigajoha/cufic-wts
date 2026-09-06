@@ -351,22 +351,22 @@
   display: flex;
 }
 .admin-tabs {
-  flex: 0 0 140px;
+  flex: 0 0 150px;
   background: var(--panel);
-  border-right: 1px solid var(--line);
-  padding: 12px 8px;
+  border-right: 1px solid color-mix(in srgb, var(--line) 65%, transparent);
+  padding: 16px 10px;
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 5px;
 }
 .admin-tabs button {
-  padding: 11px 12px;
+  padding: 12px 14px;
   text-align: left;
   background: none;
   border: 0;
-  border-radius: var(--r-sm);
+  border-radius: var(--r-md);
   color: var(--muted);
-  font-size: 13.5px;
+  font-size: 14px;
   font-weight: 600;
 }
 .admin-tabs button:hover {
@@ -383,18 +383,27 @@
   flex: 1;
   min-width: 0;
   overflow-y: auto;
-  padding: 20px;
+  padding: 26px 24px;
   background: var(--bg);
 }
 
 /* ── 상단 고정 바: 한눈 요약(Status strip) + 연결 인디케이터 ── */
+.admin-head {
+  flex-basis: 64px;
+  padding: 0 24px;
+  border-bottom-color: color-mix(in srgb, var(--line) 65%, transparent);
+}
 .admin-head .admin-status {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
   flex: 1;
   min-width: 0;
   overflow: hidden;
+}
+.admin-head .badge {
+  font-size: 12px;
+  padding: 6px 12px;
 }
 .badge.trade-live {
   background: color-mix(in srgb, var(--ok) 16%, transparent);
@@ -506,37 +515,38 @@
   }
 }
 
+/* 토스풍 전역 — 차분한 카드, 큰 친근한 섹션 제목, 넉넉한 여백 (관리자 전 탭 공통) */
 .acard {
   background: var(--panel);
-  border: 1px solid var(--line);
+  border: 1px solid color-mix(in srgb, var(--line) 65%, transparent);
   border-radius: var(--r-lg);
-  padding: 18px;
+  padding: 22px 22px 20px;
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 14px;
 }
 .acard.danger {
-  border-color: color-mix(in srgb, var(--up) 35%, var(--line));
+  border-color: color-mix(in srgb, var(--up) 32%, var(--line));
 }
 .acard-head {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 12px;
   flex-wrap: wrap;
 }
 .acard-head .acap {
   margin-right: auto;
 }
 .acap {
-  font-size: 12px;
+  font-size: 15px;
   font-weight: 800;
-  color: var(--muted);
-  letter-spacing: 0.3px;
+  letter-spacing: -0.2px;
+  color: var(--text);
 }
 .anote {
-  font-size: 12px;
-  line-height: 1.6;
-  color: var(--dim);
+  font-size: 12.5px;
+  line-height: 1.7;
+  color: var(--muted);
 }
 .anote b {
   color: var(--muted);
@@ -560,6 +570,309 @@
 /* 넓은 표는 카드 안에서 가로 스크롤 (페이지는 스크롤하지 않는다) */
 .scroller {
   overflow-x: auto;
+}
+
+/* 분기별 거시 파라미터 — 지표=행, Q1~Q4=열. 그리드 자체가 4분기 궤적. */
+.q-grid {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+.q-grid th,
+.q-grid td {
+  padding: 3px 4px;
+}
+.q-grid thead th {
+  color: var(--dim);
+  font-weight: 700;
+  text-align: center;
+  border-bottom: 1px solid var(--line);
+  padding-bottom: 5px;
+}
+.q-grid thead th .sub {
+  font-weight: 400;
+  font-size: 10px;
+  color: var(--muted);
+}
+.q-grid th[scope='row'] {
+  text-align: right;
+  color: var(--muted);
+  font-weight: 600;
+  white-space: nowrap;
+  padding-right: 8px;
+}
+.q-grid td input {
+  width: 100%;
+  min-width: 52px;
+  padding: 5px 6px;
+  text-align: center;
+  font-family: var(--mono);
+}
+
+/* ════════ 토스풍 레이어 (리디자인 — 기준 화면부터, .toss 로 스코프) ════════ */
+
+/* 차분한 카드 — 여백 크게, 테두리 옅게 */
+.acard.toss {
+  padding: 22px 22px 20px;
+  border-color: color-mix(in srgb, var(--line) 60%, transparent);
+  border-radius: var(--r-lg);
+}
+.acard.toss + .acard.toss {
+  margin-top: 14px;
+}
+.toss-h {
+  font-size: 17px;
+  font-weight: 800;
+  letter-spacing: -0.2px;
+  color: var(--text);
+  margin: 0 0 4px;
+}
+.toss-sub {
+  font-size: 12.5px;
+  color: var(--muted);
+  margin: 0 0 16px;
+  line-height: 1.5;
+}
+.toss-num {
+  font-size: 11.5px;
+  color: var(--muted);
+  font-family: var(--mono);
+  margin-top: 5px;
+}
+
+/* 세그먼트 컨트롤 */
+.seg {
+  display: inline-flex;
+  gap: 4px;
+  padding: 4px;
+  background: var(--panel-2);
+  border-radius: var(--r-md);
+  flex-wrap: wrap;
+  max-width: 100%;
+}
+.seg-opt {
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  font-family: inherit;
+  font-weight: 700;
+  font-size: 13px;
+  padding: 9px 15px;
+  border-radius: var(--r-sm);
+  cursor: pointer;
+  min-height: 40px;
+  transition:
+    background 0.12s ease,
+    color 0.12s ease;
+}
+.seg-opt:hover {
+  color: var(--text);
+}
+.seg-opt.on {
+  background: var(--panel);
+  color: var(--text);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.22);
+}
+.seg.seg-sm .seg-opt {
+  padding: 7px 11px;
+  font-size: 12px;
+  min-height: 34px;
+}
+
+/* 분기 손잡이 — 한 분기당 소프트 블록 */
+.q-block {
+  background: var(--panel-2);
+  border-radius: var(--r-md);
+  padding: 16px 16px 14px;
+}
+.q-block + .q-block {
+  margin-top: 10px;
+}
+.q-block-h {
+  font-weight: 800;
+  font-size: 14px;
+  margin-bottom: 12px;
+}
+.q-dial {
+  margin-bottom: 14px;
+}
+.q-dial:last-child {
+  margin-bottom: 0;
+}
+.lbl {
+  display: block;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--muted);
+  margin-bottom: 6px;
+}
+
+/* 4분기 요약 스트립 = 분기 선택기 */
+.q-mood {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+  margin: 16px 0 14px;
+}
+.q-mood .qm {
+  border: 1.5px solid transparent;
+  background: var(--panel-2);
+  border-radius: var(--r-md);
+  padding: 10px 8px;
+  text-align: center;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-height: 48px;
+}
+.q-mood .qm:hover {
+  border-color: color-mix(in srgb, var(--gold) 30%, var(--line));
+}
+.q-mood .qm.on {
+  border-color: var(--gold);
+  background: var(--gold-soft);
+}
+.q-mood .qn {
+  font-size: 10.5px;
+  color: var(--dim);
+  font-weight: 700;
+}
+.q-mood .qm.on .qn {
+  color: var(--gold);
+}
+.q-mood .qv {
+  font-size: 13px;
+  font-weight: 800;
+}
+
+/* 스토리형 프리셋 카드 */
+.preset-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 10px;
+}
+.preset-card {
+  text-align: left;
+  border: 1px solid var(--line);
+  background: var(--panel-2);
+  border-radius: var(--r-md);
+  padding: 13px 14px;
+  cursor: pointer;
+  transition:
+    border-color 0.12s ease,
+    background 0.12s ease;
+}
+.preset-card:hover {
+  border-color: color-mix(in srgb, var(--gold) 45%, var(--line));
+}
+.preset-card .pc-name {
+  font-weight: 800;
+  font-size: 13px;
+}
+.preset-card .pc-desc {
+  font-size: 11px;
+  color: var(--muted);
+  margin-top: 3px;
+  line-height: 1.4;
+}
+.preset-card svg {
+  display: block;
+  margin-top: 8px;
+}
+
+/* 조 관리 — 조를 표 대신 소프트 카드로 */
+.team-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.team-card {
+  background: var(--panel-2);
+  border-radius: var(--r-md);
+  padding: 14px 16px;
+}
+.tc-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+.tc-name {
+  font-size: 15px;
+  font-weight: 800;
+}
+.tc-name .linkish {
+  font-size: 15px;
+  font-weight: 800;
+}
+.tc-code {
+  font-size: 11.5px;
+  color: var(--dim);
+}
+.tc-head .conn {
+  margin-left: auto;
+}
+.tc-desc-inline {
+  flex: 1;
+  min-width: 0;
+  font-size: 11.5px;
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.tc-del {
+  flex: 0 0 auto;
+  margin-left: auto;
+}
+.tc-desc-inline + .tc-del {
+  margin-left: 0;
+}
+.tc-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(96px, 1fr));
+  gap: 12px;
+}
+.tc-stats > div {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+.tc-stats .k {
+  font-size: 10.5px;
+  color: var(--muted);
+  font-weight: 700;
+}
+.tc-stats .v {
+  font-size: 14px;
+  font-weight: 700;
+}
+.tc-stats .v em {
+  font-size: 11px;
+  font-weight: 500;
+  font-style: normal;
+  opacity: 0.72;
+  margin-left: 4px;
+}
+
+/* 진행형 공개 — details/summary */
+.acard.toss details > summary {
+  list-style: none;
+  cursor: pointer;
+  display: inline-block;
+}
+.acard.toss details > summary::-webkit-details-marker {
+  display: none;
+}
+.acard.toss details > summary::before {
+  content: '▾ ';
+  color: var(--dim);
+}
+.acard.toss details[open] > summary::before {
+  content: '▴ ';
 }
 
 /* 통계 탭: 참가자별 실시간 모니터링 */
@@ -936,11 +1249,16 @@
 .ds-row {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 8px 10px;
-  border: 1px solid var(--line);
-  border-radius: var(--r-sm);
-  background: var(--panel);
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 14px 16px;
+  border: 1px solid transparent;
+  border-radius: var(--r-md);
+  background: var(--panel-2);
+}
+.ds-row.on {
+  border-color: var(--gold);
+  background: var(--gold-soft);
 }
 .ds-info {
   flex: 1;
@@ -1037,49 +1355,51 @@
   border-top: 1px solid var(--line);
 }
 .tab-group-label {
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.5px;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.3px;
   color: var(--dim);
-  padding: 0 0 4px 4px;
+  padding: 0 0 5px 6px;
 }
 /* 탭 상단 한 줄 도움말 */
 .tab-help {
-  font-size: 12px;
+  font-size: 13px;
+  line-height: 1.55;
   color: var(--muted);
-  margin: 0 0 12px;
-  padding: 8px 12px;
+  margin: 0 0 16px;
+  padding: 12px 15px;
   background: var(--panel-2);
-  border-radius: var(--r-sm);
+  border-radius: var(--r-md);
 }
 /* 진행 탭 "다음 할 일" */
 .next-action {
   display: flex;
   align-items: center;
-  gap: 14px;
-  border: 1px solid var(--gold);
-  background: color-mix(in srgb, var(--gold) 10%, transparent);
+  gap: 16px;
+  border: 1.5px solid color-mix(in srgb, var(--gold) 45%, transparent);
+  background: color-mix(in srgb, var(--gold) 9%, transparent);
 }
 .na-info {
   flex: 1;
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 3px;
   min-width: 0;
 }
 .na-label {
-  font-size: 11px;
-  font-weight: 700;
+  font-size: 11.5px;
+  font-weight: 800;
+  letter-spacing: 0.2px;
   color: var(--gold);
 }
 .na-msg {
-  font-size: 14px;
-  font-weight: 600;
+  font-size: 15px;
+  font-weight: 700;
 }
 .next-action .na-btn {
   width: auto;
   flex: 0 0 auto;
-  padding: 12px 26px;
+  padding: 13px 28px;
   font-size: 16px;
 }
 /* 진행 탭 내부 구분선 */
@@ -1158,34 +1478,33 @@
 .prep-card {
   display: flex;
   flex-direction: column;
+  gap: 12px;
 }
 .prep-step {
   display: flex;
-  gap: 12px;
-  padding: 14px 0;
-  border-top: 1px solid var(--line-soft);
-}
-.prep-step:first-of-type {
-  border-top: none;
-  padding-top: 6px;
+  gap: 14px;
+  padding: 16px;
+  background: var(--panel-2);
+  border-radius: var(--r-md);
 }
 .prep-no {
   flex: 0 0 auto;
-  width: 26px;
-  font-size: 18px;
+  width: 24px;
+  font-size: 20px;
   font-weight: 800;
   color: var(--gold);
+  line-height: 1.3;
 }
 .prep-body {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 9px;
   flex: 1;
   min-width: 0;
 }
 .prep-t {
-  font-size: 13px;
-  font-weight: 700;
+  font-size: 15px;
+  font-weight: 800;
 }
 .prep-start {
   align-self: flex-start;
@@ -1345,7 +1664,7 @@
 .form {
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 16px;
 }
 .frow {
   display: flex;
@@ -1355,10 +1674,10 @@
 .frow.col {
   flex-direction: column;
   align-items: stretch;
-  gap: 6px;
+  gap: 7px;
 }
 .frow label {
-  font-size: 12px;
+  font-size: 12.5px;
   font-weight: 700;
   color: var(--muted);
   min-width: 72px;
@@ -1367,11 +1686,11 @@
 .frow textarea {
   background: var(--bg);
   border: 1.5px solid var(--line);
-  border-radius: var(--r-sm);
+  border-radius: var(--r-md);
   color: var(--text);
   font-family: var(--sans);
   font-size: 14px;
-  padding: 10px 12px;
+  padding: 11px 13px;
   outline: 0;
   width: 100%;
   resize: vertical;
@@ -1463,15 +1782,15 @@
 .hint-row {
   display: flex;
   align-items: flex-start;
-  gap: 10px;
-  padding: 10px;
+  gap: 12px;
+  padding: 14px 16px;
   border-radius: var(--r-md);
-  border: 1px solid var(--line);
+  border: 1px solid transparent;
   background: var(--panel-2);
   cursor: pointer;
 }
 .hint-row:hover {
-  border-color: var(--muted);
+  border-color: color-mix(in srgb, var(--gold) 30%, var(--line));
 }
 .hint-row.on {
   border-color: var(--gold);
@@ -1573,16 +1892,16 @@
 .lb {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 8px;
 }
 .lb-row {
   display: flex;
   align-items: center;
-  gap: 14px;
-  padding: 12px 14px;
+  gap: 16px;
+  padding: 14px 16px;
   border-radius: var(--r-md);
   background: var(--panel-2);
-  border: 1px solid var(--line);
+  border: 1px solid transparent;
 }
 .lb-row.rank1 {
   border-color: var(--gold);
@@ -1590,10 +1909,10 @@
 }
 .lb-rank {
   font-family: var(--mono);
-  font-size: 18px;
+  font-size: 20px;
   font-weight: 800;
   color: var(--dim);
-  width: 34px;
+  width: 36px;
   text-align: center;
 }
 .lb-row.rank1 .lb-rank {
@@ -1849,4 +2168,145 @@
   flex-direction: column;
   gap: 6px;
   padding: 6px 0 0;
+}
+
+/* ════════════ 모션 레이어 — 눌리고, 떠오르고, 부드럽게 (관리자 전반) ════════════ */
+
+/* 클릭 가능한 것 전부: 상태 변화가 매끄럽게 */
+.act-btn,
+.text-btn,
+.seg-opt,
+.admin-tabs button,
+.preset-card,
+.team-card,
+.lb-row,
+.q-mood .qm,
+.prep-step,
+.acard,
+.frow input,
+.frow textarea,
+.ds-pick-sel {
+  transition:
+    transform 0.13s ease,
+    box-shadow 0.17s ease,
+    background 0.15s ease,
+    border-color 0.15s ease,
+    color 0.12s ease;
+}
+
+/* 포커스 링 — 키보드 사용자 (항상, 모션과 무관) */
+.act-btn:focus-visible,
+.text-btn:focus-visible,
+.seg-opt:focus-visible,
+.admin-tabs button:focus-visible,
+.q-mood .qm:focus-visible,
+.preset-card:focus-visible,
+details > summary:focus-visible {
+  outline: 2px solid var(--gold);
+  outline-offset: 2px;
+  border-radius: var(--r-sm);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  /* 탭을 바꾸면 콘텐츠가 살짝 밀려 올라오며 나타난다 */
+  .admin-main > .apanel {
+    animation: adm-in 0.26s cubic-bezier(0.2, 0.8, 0.2, 1);
+  }
+  @keyframes adm-in {
+    from {
+      opacity: 0;
+      transform: translateY(7px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+
+  /* 카드가 하나씩 순차로 (진행 탭 준비 단계, 조 카드 등) */
+  .prep-step,
+  .team-card,
+  .lb-row {
+    animation: adm-rise 0.32s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  }
+  .prep-step:nth-child(2),
+  .team-card:nth-child(2),
+  .lb-row:nth-child(2) {
+    animation-delay: 0.04s;
+  }
+  .prep-step:nth-child(3),
+  .team-card:nth-child(3),
+  .lb-row:nth-child(3) {
+    animation-delay: 0.08s;
+  }
+  .prep-step:nth-child(4),
+  .team-card:nth-child(4),
+  .lb-row:nth-child(4) {
+    animation-delay: 0.12s;
+  }
+  .lb-row:nth-child(5) {
+    animation-delay: 0.16s;
+  }
+  .lb-row:nth-child(n + 6) {
+    animation-delay: 0.2s;
+  }
+  @keyframes adm-rise {
+    from {
+      opacity: 0;
+      transform: translateY(9px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+
+  /* 누르면 꾹 — 물리적 반응 */
+  .act-btn:active:not(:disabled),
+  .text-btn:active,
+  .seg-opt:active,
+  .admin-tabs button:active,
+  .q-mood .qm:active,
+  .preset-card:active {
+    transform: scale(0.97);
+  }
+
+  /* 마우스 있을 때만 떠오름 (터치에선 안 함 — hover 전용 정보 아님, 장식) */
+  @media (hover: hover) {
+    .preset-card:hover,
+    .q-mood .qm:hover:not(.on) {
+      transform: translateY(-2px);
+      box-shadow: 0 5px 16px rgb(0 0 0 / 0.18);
+    }
+    .lb-row:hover {
+      transform: translateX(3px);
+    }
+    .acard:hover {
+      border-color: color-mix(in srgb, var(--line) 90%, transparent);
+    }
+    .admin-tabs button:hover {
+      transform: translateX(2px);
+    }
+  }
+
+  /* 세그먼트 켜질 때 톡 */
+  .seg-opt.on {
+    animation: adm-pop 0.2s ease;
+  }
+  @keyframes adm-pop {
+    0% {
+      transform: scale(0.94);
+    }
+    60% {
+      transform: scale(1.03);
+    }
+    100% {
+      transform: scale(1);
+    }
+  }
+
+  /* 숫자 병기(toss-num)가 바뀌면 살짝 깜빡 */
+  .toss-num {
+    transition: color 0.2s ease;
+  }
 }

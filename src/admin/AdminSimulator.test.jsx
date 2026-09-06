@@ -118,10 +118,10 @@ describe('시드 재생성', () => {
   it('🎲 버튼을 누르면 시드 값이 바뀐다', async () => {
     const u = userEvent.setup()
     render(<AdminSimulator {...makeProps()} />)
-    const seedInput = screen.getByLabelText('시드 (재현성)')
+    const seedInput = document.getElementById('sim-seed')
     expect(seedInput).toHaveValue(42)
 
-    await u.click(screen.getByText(/시드 재생성/))
+    await u.click(screen.getByText(/새로 섞기/))
     expect(seedInput).not.toHaveValue(42)
   })
 })
@@ -292,10 +292,11 @@ describe('거시 파라미터 세션 유지', () => {
     expect(screen.getByLabelText('기준금리 (%)')).toHaveValue(7.25)
   })
 
-  it('[🔄 기본값으로 초기화]를 누르면 재마운트해도 기본값이 유지된다', () => {
+  it('[처음값으로]를 누르면 재마운트해도 기본값이 유지된다', () => {
     const { unmount } = render(<AdminSimulator {...makeProps()} />)
+    fireEvent.click(screen.getByText('숫자로 직접 (슬라이더)')) // details 펼치기
     fireEvent.change(screen.getByLabelText('기준금리 (%)'), { target: { value: '9' } })
-    fireEvent.click(screen.getByText('🔄 기본값으로 초기화'))
+    fireEvent.click(screen.getByText('처음값으로'))
     expect(screen.getByLabelText('기준금리 (%)')).toHaveValue(2)
     unmount()
 

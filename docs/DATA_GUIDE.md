@@ -195,7 +195,8 @@ scripts/build-data.mjs 안의 DESC·HINTS (소개·힌트) ┘                  
 - [적용]을 누르면 가격과 함께 `admin_apply_generated_content`로 반영된다.
 - 이미 드리프트 난 데이터셋 보정: `node scripts/repair-dataset.mjs <관리자비밀> --apply`.
 - 임의 DB 감사: `node scripts/audit-dataset.mjs`(위 규칙을 라이브 테이블에 그대로 검사).
-- 헤드라인 문장은 현재 템플릿. LLM(Gemini) 교체는 [DECISIONS.md](DECISIONS.md) 2026-08-30 §미완 참고.
+- 헤드라인 문장은 규칙 템플릿이 기본. 관리자가 자기 Gemini 키를 주가 생성기 탭에 넣으면 그 문장만 LLM으로
+  다듬는다(BYO 키, 배포 불필요 — [DECISIONS.md](DECISIONS.md) 2026-08-30). 숫자·방향은 키와 무관하게 항상 엔진이 결정.
 
 ### 개념 정리 (헷갈리기 쉬움)
 | 용어 | 뜻 | 화면 |

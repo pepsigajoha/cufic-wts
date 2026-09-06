@@ -10,6 +10,107 @@
 
 ---
 
+## 2026-09-07 · 관리자 화면 토스풍 리디자인 (진행 중 — 기준 화면부터)
+
+관리자 화면이 "다크 컨트롤 패널"(작은 회색 라벨, 촘촘한 표, `drift`·`σ`·`GARCH`·`betaFx` 같은
+전문용어, 작은 버튼)이라 준비 작업이 무겁게 느껴진다는 피드백. 토스식 — 여백 크게, 큰 친근한
+타이포, 한 번에 한 결정, 사람 말, 숫자 대신 세그먼트(단 실제 값은 아래 작게 병기).
+
+- **한 번에 다 갈아엎지 않는다.** ① 디자인 언어를 CSS/컴포넌트로 만들고 ② 기준 화면 하나
+  (**주가 생성기 탭**)를 완성해 느낌을 확정한 뒤 ③ 나머지 탭에 같은 언어를 굴린다.
+- **디자인 프리미티브** — `.acard.toss`(여백 큰 차분한 카드), `.toss-h/.toss-sub/.toss-num`(친근한
+  헤딩·설명·숫자 병기), `Segmented`(`src/admin/Segmented.jsx` + `.seg`), `.q-block`/`.q-mood`/`.preset-cards`.
+  `.toss`로 스코프해 옛 화면과 공존 → 롤아웃 끝나면 `.acard`에 흡수.
+- **친근한 손잡이 = `src/admin/macroLevels.js`.** 거시 7요인을 3개 다이얼로 묶는다: **경기**(GDP·실업·심리
+  동시), **금리·물가**, **대외 여건**(환율·유가). 각 다이얼은 3~5단(`매우 나쁨`…`매우 좋음`). 세그먼트는
+  setter일 뿐 — 현재 선택은 정확히 일치하는 레벨을 찾고(`activeLevelId`), 없으면 표시 없음 + 아래 실제
+  숫자 병기(`d.fmt`). `QUARTER_PRESETS`도 레벨 id로 정의(`macroFromLevels`)해서 불러오면 세그먼트가 딱 맞게 켜진다.
+- **분기 편집** — 스토리 프리셋 카드(미니 라인 + 한 줄) → **4분기 요약 스트립**(`보통 → 매우 나쁨 → 나쁨
+  → 좋음`, 그 자체가 분기 선택기) → 선택 분기의 3다이얼. `정밀 조정 ▾`(`<details>`)에 옛 숫자 그리드 보존.
+- **롤아웃 진행** — (2026-09-07) ① admin.css 전역 패스: `.acard`(여백↑·테두리 옅게), `.acap` 12px 회색
+  캡션 → 15px 진한 섹션 제목, 입력·나비게이션·`.tab-help` 여백↑. 모든 탭이 즉시 차분해짐. ② `.prep-step`
+  (진행 탭 준비 단계)를 하이라인 구분 행 → 소프트 카드. ③ `.next-action`·`.lb-row`(리더보드) 여백·타이포 정리.
+  브라우저 확인: 진행·리더보드·재무·시황 — 레이아웃 깨짐 없음.
+- **조 관리 (2026-09-07)** — 조 목록을 9열 `<table>` → **조당 소프트 카드**(이름·코드·접속·삭제 헤더 +
+  시드/예수금/평가/수익률/거래/힌트 라벨 스탯 그리드, `.team-card`/`.tc-*`). 노트북·프로젝터에서 읽기 쉬워짐.
+- **모션 레이어 (2026-09-07)** — admin.css 끝에 추가. 탭 전환 시 콘텐츠 fade-up, 카드(준비 단계·조·
+  리더보드 행) 순차 rise, 버튼·세그먼트·탭 `:active` scale(0.97), preset/mood 카드 hover lift(마우스에서만),
+  `.seg-opt.on` pop, `:focus-visible` 골드 링. 전부 `@media (prefers-reduced-motion: no-preference)`로 감쌈
+  (모션 끈 사용자는 정적). 포커스 링만 항상.
+- **콘텐츠 탭 일괄 (2026-09-07)** — 종목·가격, 파생·옵션의 `<table>` → 카드 리스트(`.team-card` 재사용,
+  연도 가격/계약 지표를 라벨 스탯 그리드로). 데이터셋(`.ds-row`)·힌트(`.hint-row`)는 이미 리스트라 소프트
+  카드로만 정리. **통계 탭은 표 유지** — 조 여러 개를 지표별로 비교하는 대시보드라 표가 옳다(카드화하면
+  비교가 어려워짐). 시스템 탭은 설정 폼이라 전역 패스로 충분.
+- **남음** — 진행 탭 타이머/연도 넘기기 흐름을 세그먼트/다이얼 구조로 재설계(대회 중 불가역 지점이라
+  별도 턴에 집중). Admin 셸 네비는 전역 패스로 정리됨.
+
+---
+
+## 2026-09-06 · 거래 타이머 일시정지/재개 (마이그레이션 0049)
+
+공지·질문·기술 문제로 잠깐 멈춰야 할 때. `adjust_round_timer`(−분)로 대신할 수도 있지만
+얼마나 멈출지 모르고, 재개 시점을 정확히 잡기 어렵다.
+
+- **`is_locked`를 재사용하지 않고 `game_state.round_paused_at`을 새로 뒀다.** `is_locked`는 연도 넘기기
+  (`advance_round`↔`start_round_timer`) 잠금이고, `round_step_idx()`가 locked면 251(연말)을 반환한다 —
+  일시정지에 쓰면 정지하는 순간 장중 스텝이 연말로 튄다. 별도 상태여야 "지금 스텝에서 얼기"가 된다.
+- **재개 = 멈춘 만큼 시각을 민다.** `resume`이 `now - round_paused_at`을 `round_start_at`·`round_ends_at`에
+  더한다 → 남은 시간·진행률(스텝)이 정지 직전 그대로. 정지 중엔 `round_step_idx()`가 `coalesce(round_paused_at, now())`로
+  얼고 `place_order`는 `round_paused`로 거부. 클라 `roundStepIndex`·`App.jsx`도 같은 공식(테스트 고정).
+- `start_round_timer`가 `round_paused_at`을 함께 지운다(새로 여는 거니까). 관리자 진행 탭에 [⏸/▶] 버튼.
+
+---
+
+## 2026-09-06 · 주가 생성기 분기별(63일) 거시 파라미터 (엔진·UI는 마이그레이션 없음 · 서버 저장은 0048)
+
+한 라운드(=1년=252거래일)를 4분기(63일씩)로 나눠, **분기마다 거시 파라미터(금리·GDP·실업률·
+물가·소비심리·환율·유가)를 바꾼다.** 금융위기 같은 충격은 별도 "위기 코드" 없이 그 분기에
+파라미터를 강하게(금리 급등 + GDP 역성장 + 실업 상승) 넣으면 엔진에서 자연히 나온다.
+
+- **처음엔 drift·σ 스칼라를 분기마다 직접 넣는 방식으로 만들었다가 폐기.** 시뮬레이터 전체가
+  7요인 슬라이더 기반인데 추상 숫자(`drift: -0.45`)를 넣게 하는 건 비직관적이고, `step()`에
+  `muOverride`/`sigmaOverride` 특수분기를 심어야 했다. **분기별 macro 교체는 그 특수 코드를 오히려
+  없앤다** — `step(macro, ...)`가 이미 Δ(shock)/절대치(gravity)로 macro→가격을 다 하므로.
+- **엔진.** `simulateNextRound`/`generatePriceSeries`에 선택적 `quarters: [{macro,eventNews,hintText}×4]`.
+  루프에서 스텝 `s`가 속한 분기(`min(3, floor((s-1)*4/stepsPerYear))`)의 macro를 `step()`에 넣는다.
+  분기 첫날에 큰 Δ 충격 + (실업>5 또는 물가>8이면) 변동성 자동 ×1.3. `step()`은 분기를 몰라도 된다.
+  **`quarters` 미지정 시 기존 결과와 바이트 동일**(하위호환 테스트로 고정).
+- **연속성은 공짜.** `sim.price`가 매 스텝 이어받으므로 경계에서 재시드·수직 갭이 구조적으로 불가능.
+  252일째 값은 그대로 `stocks.prices` 연말 확정가로 dual-write(엔진 트랙 불변식 유지).
+- **드리프트는 ±0.6/년으로 클램프된다(원래 설계).** 그래서 위기는 "한 방 폭락"이 아니라 매일 조금씩
+  눌리는 + 변동성이 크게 벌어지는 형태로 나타난다. 회귀 테스트는 확률적 평균 대신 **같은 시드로
+  좋은/나쁜 시나리오를 돌려 252일 복리 끝값을 비교**해 노이즈에 안 흔들리게 한다.
+- **파일 배치** — 순수 기하(`QUARTER_LEN`·`quarterAt`/`quarterOfStep`/`monthOfStep`/`isQuarterStart`)는
+  `src/quarters.js`(학생 화면도 import). 분기 config의 기본값·검증(`defaultQuarterConfigs`·
+  `isValidQuarterConfigs`·`normalizeQuarterConfigs`)은 `src/admin/quarterConfig.js`(거시 기본값이 엔진에
+  있어서 — 학생 번들이 엔진을 끌어오지 않게 분리). 슬라이더 메타는 `src/admin/macroFields.js`.
+  프리셋은 `simulatorPresets.js` `QUARTER_PRESETS`(완만한 성장 / 2분기 위기·4분기 반등 / 박스권 / 완만한 하락).
+- **AdminSimulator UI (2026-09-07 재작업).** 처음엔 별도 "분기별" 카드 + Q1~Q4 탭으로 만들었으나 —
+  단일 거시 카드와 나란히 있어 중복이고("무시됨" 경고까지), 탭이라 4분기를 한 눈에 못 봤다. **한 카드로 통합**:
+  "거시 파라미터" 카드 상단에 토글 `[라운드 1값 | 분기별 4값]`. 분기별이면 **지표=행 · Q1~Q4=열 그리드**
+  (그리드 자체가 궤적, 별도 요약 불필요). 기본 3행(금리·GDP·소비심리) + "고급 ▾"(실업·물가·환율·유가·힌트).
+  프리셋 + "Q1을 전 분기에 복사". 시드는 두 모드 공통 1곳. `macroFields.js`에 `group: main|adv` + 행 순서,
+  `.q-grid` 스타일은 admin.css.
+- **학생 화면.** 헤더 `Q2 · 5월` 배지(`liveStep`→`quarterOfStep`/`monthOfStep`, 거래 중에만).
+  Q1→Q2→Q3→Q4 전환 시 속보/힌트 토스트 1회 — `qPrev` ref로 중복 방지, **첫 관찰(라운드 중간 접속)은
+  알리지 않아** 지나간 분기가 소급 발사되지 않는다. `warned30`(30초 경고)과 같은 패턴.
+- **서버 저장 (마이그레이션 0048 · 개발 DB 적용됨)** — `round_quarter_configs`(round PK, `quarters` jsonb[4],
+  길이만 CHECK). RLS on + **select 정책 없음** — 미래 분기 macro는 다음 등락을 계산할 수 있는 스포일러라
+  `round_configs`(0038)와 똑같이 anon 전면 차단. 관리자 RPC 3개(upsert/list/delete).
+  - **학생 스포일러 게이트** — `get_quarter_events()`가 **현재 라운드 · 현재 분기(`private.round_step_idx()`)
+    까지만** `{quarter, eventNews, hintText}`를 준다(macro는 학생에게 절대 안 줌). 타이머 미시작·잠금·종료면 `[]`.
+  - **데이터셋 영속** — `snapshot_content`/`restore_content`에 `quarter_configs` 키(옛 payload는 `coalesce(...,'[]')`
+    null-safe). `reset_game`은 안 건드림.
+- **클라이언트 배선 (완료)** — `actions.js` admin 래퍼 3개. `AdminSimulator` [적용] 시 `persistQuarters()`로
+  대상 라운드(next=다음 / batch=전 라운드)에 저장. `App.jsx` 토스트는 전환 직후 `get_quarter_events()`를
+  다시 읽어(서버가 "현재 분기까지"만 주므로) **서버 우선**, 실패·공백이면 `quarterEvents.js` 폴백.
+  재무 파생(`deriveContent`)은 [사용] 시 Q4(연말) macro의 금리·물가를 쓴다.
+- **아직 남은 것** — ① 저장값을 카드로 되불러오는 버튼(`listRoundQuarterConfigs` 래퍼는 준비됨).
+  ② 프로덕션 DB는 0032라 0048도 대회 전 prod push 목록에 포함. ③ [사용] 끄고 재생성해도 그 라운드에
+  이미 저장된 분기 config는 안 지워진다(명시적 삭제 필요 — `deleteRoundQuarterConfig` 래퍼만 있고 버튼 없음).
+
+---
+
 ## 2026-08-30 · 주가 생성기 → 재무제표·힌트 자동 정합 (숫자=엔진, 문장=LLM) (마이그레이션 0047)
 
 주가 생성기로 새 가격 경로를 만들면 시드에 고정된 재무제표·힌트가 그 방향과 어긋난다.

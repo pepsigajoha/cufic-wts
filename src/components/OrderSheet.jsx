@@ -2,6 +2,11 @@ import { useState } from 'react'
 import { num, signed, pct, dirOf } from '../format'
 import { positionPnl } from '../account'
 import QtyStepper, { QtyRatios } from './QtyStepper'
+import Modal from './Modal'
+
+// 평가금액의 이 비율 이상을 한 번에 움직이는 주문이면 확인을 한 번 받는다(오조작 방지).
+// UX 계층만 — 서버 place_order 판정은 그대로다.
+const CONFIRM_RATIO = 0.7
 
 /**
  * 주문 패널 — 즉시 체결.
@@ -32,6 +37,7 @@ export default function OrderSheet({
   // App이 key={종목코드}로 리마운트하므로 종목을 바꾸면 0으로 초기화되고, 방향을 바꿔도 0으로 되돌린다.
   const [side, setSide] = useState('buy')
   const [qty, setQty] = useState(0)
+  const [confirm, setConfirm] = useState(false)
   const isBuy = side === 'buy'
   const pos = positionPnl(stock)
 
@@ -54,9 +60,23 @@ export default function OrderSheet({
   // 거래 대기(타이머 밖)·거래정지면 매수·매도 입력 전체를 완전히 잠근다(양쪽 동일 시각)
   const locked = !tradingOpen || stock.halted
 
-  const submit = async () => {
+  // 이번 주문 금액이 평가금액(예수금 + 보유평가)의 CONFIRM_RATIO 이상이면 확인 모달을 한 번 띄운다.
+  const equity = cash + holdingsValue
+  const orderValue = qty * unit
+  const equityPct = equity > 0 ? Math.round((orderValue / equity) * 100) : 0
+  const needsConfirm = equity > 0 && orderValue >= equity * CONFIRM_RATIO
+
+  const doSubmit = async () => {
+    setConfirm(false)
     await onOrder(side, qty)
     setQty(0)
+  }
+  const submit = () => {
+    if (needsConfirm) {
+      setConfirm(true)
+      return
+    }
+    doSubmit()
   }
 
   // 거래가 닫힌 이유 (안내 문구). 종목별 거래정지는 아래에서 따로 안내한다.
@@ -120,8 +140,13 @@ export default function OrderSheet({
             </span>
           </div>
 
-          {!isBuy && stock.holding > 0 && (
+          {/* 내 보유 현황 — 매수·매도 양쪽에서 본다(매수 시엔 추가 매수 판단, 매도 시엔 청산 판단) */}
+          {stock.holding > 0 && (
             <div className="posbox">
+              <div className="r">
+                <span className="k">보유</span>
+                <span className="v num">{num(stock.holding)}주</span>
+              </div>
               <div className="r">
                 <span className="k">평균단가</span>
                 <span className="v num">₩ {num(stock.avgPrice)}</span>
@@ -137,6 +162,7 @@ export default function OrderSheet({
 
           <QtyRatios
             max={max}
+            value={qty}
             onPick={setQty}
             maxLabel={isBuy ? '최대' : '전량'}
             disabled={locked}
@@ -222,6 +248,29 @@ export default function OrderSheet({
           )}
         </div>
       </div>
+
+      <Modal open={confirm} onClose={() => setConfirm(false)} title="주문 확인">
+        <div className="confirm">
+          <p className="big">
+            {stock.name} · {isBuy ? '매수' : '매도'} {num(qty)}주
+          </p>
+          <p className="amt num">₩ {num(orderValue)}</p>
+          {equity > 0 && (
+            <p className="ask">
+              평가금액의 <b>{equityPct}%</b>를 한 번에 {isBuy ? '사는' : '파는'} 주문이에요. 정말
+              {isBuy ? ' 매수' : ' 매도'}할까요?
+            </p>
+          )}
+        </div>
+        <div className="mfoot">
+          <button className="cancel" onClick={() => setConfirm(false)}>
+            취소
+          </button>
+          <button className={isBuy ? 'buy' : 'sell'} onClick={doSubmit}>
+            {isBuy ? '매수' : '매도'}
+          </button>
+        </div>
+      </Modal>
     </aside>
   )
 }

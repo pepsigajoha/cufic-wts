@@ -125,6 +125,25 @@ export default function Chart({
   const tipIdx = Math.max(0, revealedPath.length - 1)
   const livePrice = revealedPath[tipIdx] ?? stock.price
 
+  // 활성 timeframe이 지금 실제로 보여주는 연도 범위 — 버튼이 무엇을 바꿨는지 읽히게 한다(집계 로직은 그대로).
+  const yearsAvail =
+    Object.keys(roundYearMap || {}).filter((r) => Number(r) >= 1 && Number(r) <= (round ?? 0)).length ||
+    1
+  const yearsShown = tf.key === 'T' ? 1 : Math.min(tf.window, yearsAvail)
+  const scopeLabel =
+    tf.key === 'T' ? '올해' : tf.key === 'Y' ? `전체 ${yearsShown}년` : `최근 ${yearsShown}년`
+
+  // 플롯 좌하단 배지 — 장중 진행 위치 / 마감 / 일시정지. 거래정지면 없음.
+  const plotBadge = stock.halted
+    ? null
+    : timerState === 'closed'
+      ? '장 마감'
+      : timerState === 'live'
+        ? `거래일 ${Math.min(STEPS_PER_YEAR, stepIdx + 1)} / ${STEPS_PER_YEAR}`
+        : timerState === 'paused'
+          ? '일시정지'
+          : null
+
   // 각 점의 y값 = 그 점의 실제 경로 값(잔떨림·재계산 없음).
   const liveSegmentY = (i) => revealedPath[i]
 
@@ -168,7 +187,7 @@ export default function Chart({
   }, [revealedPath, tipY, x, y, h, ready])
 
   return (
-    <main className="col chart">
+    <main className="chart">
       <div className="top">
         <span className="name">{stock.name}</span>
         <span className="code2">{stock.market}</span>
@@ -223,12 +242,20 @@ export default function Chart({
           ))}
         </div>
 
-        <div className="tf">
-          {TIMEFRAMES.map((t) => (
-            <button key={t.key} className={tfKey === t.key ? 'on' : ''} onClick={() => setTfKey(t.key)}>
-              {t.label}
-            </button>
-          ))}
+        <div className="tf-wrap">
+          <span className="tf-scope">{scopeLabel}</span>
+          <div className="tf" role="group" aria-label="차트 기간">
+            {TIMEFRAMES.map((t) => (
+              <button
+                key={t.key}
+                className={tfKey === t.key ? 'on' : ''}
+                aria-pressed={tfKey === t.key}
+                onClick={() => setTfKey(t.key)}
+              >
+                {t.label}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 
@@ -263,8 +290,18 @@ export default function Chart({
                 가격선의 끝점도 y(livePrice)로 그리므로(위 tipY) 이 셋은 항상 정확히 같은
                 y좌표를 공유한다 — 점만 따로 떠 보이는 어긋남이 생기지 않는다. */}
             <line className={'nowline ' + dir} x1={PAD.l} y1={tipY} x2={w - PAD.r} y2={tipY} />
+            {/* 세로 '오늘' 마커 — 장중이면 팁의 x위치를 위아래로 그어 진행 지점을 x축 상에 보여준다 */}
+            {timerState === 'live' && (
+              <line className={'nowmark ' + dir} x1={tipX} y1={PAD.t} x2={tipX} y2={h - PAD.b} />
+            )}
             {tradingOpen && <circle className={'nowline-pulse ' + dir} cx={tipX} cy={tipY} r={3.5} />}
           </svg>
+        )}
+
+        {plotBadge && (
+          <div className={'plot-badge' + (timerState === 'closed' ? ' closed' : '')} aria-live="polite">
+            {plotBadge}
+          </div>
         )}
 
         {ready && (

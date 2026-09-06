@@ -35,7 +35,10 @@ export function roundStepIndex(game, nowMs = Date.now()) {
   if (!Number.isFinite(start) || !Number.isFinite(end) || game?.is_locked) return last
   const span = end - start
   if (!(span > 0)) return last
-  const frac = (nowMs - start) / span
+  // 일시정지(0049) 중이면 그 시각에서 진행률을 얼린다 — SQL private.round_step_idx()와 동일.
+  const paused = Date.parse(game?.round_paused_at ?? '')
+  const effNow = Number.isFinite(paused) ? paused : nowMs
+  const frac = (effNow - start) / span
   return Math.max(0, Math.min(last, Math.floor(frac * STEPS_PER_YEAR)))
 }
 

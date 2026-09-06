@@ -75,7 +75,9 @@ export default function AdminProgress({
 
   // 거래 타이머 상태 (서버 round_ends_at 기준)
   const endsAt = game.round_ends_at ? new Date(game.round_ends_at).getTime() : null
-  const remainingMs = endsAt ? Math.max(0, endsAt - nowTs) : 0
+  const pausedAt = game.round_paused_at ? new Date(game.round_paused_at).getTime() : null
+  const paused = pausedAt != null
+  const remainingMs = endsAt ? Math.max(0, endsAt - (pausedAt ?? nowTs)) : 0
   const timerRunning = !notStarted && remainingMs > 0
   const durMin = Math.round((game.round_duration_seconds ?? 600) / 60)
   const durationMs = (game.round_duration_seconds ?? 600) * 1000
@@ -162,6 +164,19 @@ export default function AdminProgress({
       return
     }
     notify(`거래 시간 ${deltaMin > 0 ? '+' : ''}${deltaMin}분`, 'gold')
+    await refresh()
+  }
+
+  // 거래 타이머 일시정지 / 재개 (0049)
+  const togglePause = async () => {
+    setBusy(true)
+    const r = paused ? await actions.resumeTimer() : await actions.pauseTimer()
+    setBusy(false)
+    if (!r.ok) {
+      notify(errorText(r.error), 'down')
+      return
+    }
+    notify(paused ? '거래를 재개했어요' : '거래를 일시정지했어요', 'gold')
     await refresh()
   }
 
@@ -401,23 +416,32 @@ export default function AdminProgress({
           <TimerPill
             remainingMs={remainingMs}
             durationMs={durationMs}
-            state={timerRunning ? 'live' : endsAt ? 'closed' : 'waiting'}
+            state={paused ? 'paused' : timerRunning ? 'live' : endsAt ? 'closed' : 'waiting'}
           />
           <p className="anote">
-            {timerRunning
-              ? '거래 진행 중 — 학생들이 매매할 수 있어요'
-              : endsAt
-                ? '거래 마감 — 순위 확인 후 다음 연도로 넘기세요'
-                : `타이머를 시작하면 ${durMin}분간 거래가 열려요`}
+            {paused
+              ? '일시정지됨 — 학생 매매 잠금. [재개]하면 남은 시간이 그대로 이어져요'
+              : timerRunning
+                ? '거래 진행 중 — 학생들이 매매할 수 있어요'
+                : endsAt
+                  ? '거래 마감 — 순위 확인 후 다음 연도로 넘기세요'
+                  : `타이머를 시작하면 ${durMin}분간 거래가 열려요`}
           </p>
           {timerRunning && (
             <div className="timer-adjust">
-              <button className="act-btn adj" disabled={busy} onClick={() => adjustTimer(-1)}>
+              <button className="act-btn adj" disabled={busy || paused} onClick={() => adjustTimer(-1)}>
                 − 1분
               </button>
               <span className="adj-hint">거래 시간 조정</span>
-              <button className="act-btn adj" disabled={busy} onClick={() => adjustTimer(1)}>
+              <button className="act-btn adj" disabled={busy || paused} onClick={() => adjustTimer(1)}>
                 + 1분
+              </button>
+            </div>
+          )}
+          {timerRunning && (
+            <div className="arow">
+              <button className="act-btn" disabled={busy} onClick={togglePause}>
+                {paused ? '▶ 거래 재개' : '⏸ 거래 일시정지'}
               </button>
             </div>
           )}

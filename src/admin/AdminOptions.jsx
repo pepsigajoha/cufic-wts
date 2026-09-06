@@ -66,52 +66,56 @@ export default function AdminOptions({ actions, game, stocks, optionsContracts, 
           <b>연도 넘기기(advance_round) 때 자동으로 내재가치로 정산</b>됩니다 — 따로 결제할 필요 없어요.
         </p>
 
-        <div className="scroller">
-          <table>
-            <thead>
-              <tr>
-                <th>종목</th>
-                <th>종류</th>
-                <th>행사가</th>
-                <th>만기</th>
-                <th>변동성(σ)</th>
-                <th>무위험금리(r)</th>
-                <th>상태</th>
-                <th></th>
-              </tr>
-            </thead>
-            <tbody>
-              {contracts.map((c) => (
-                <tr key={c.id}>
-                  <td>{stockName(c.stock_id)}</td>
-                  <td>{c.option_type === 'put' ? '풋' : '콜'}</td>
-                  <td className="num">₩{num(c.strike)}</td>
-                  <td>
-                    R{c.expiry_round}
-                    {c.expiry_round <= currentRound && <div className="sub">만기 지남</div>}
-                  </td>
-                  <td className="num">{(Number(c.implied_vol) * 100).toFixed(1)}%</td>
-                  <td className="num">{(Number(c.risk_free_rate) * 100).toFixed(1)}%</td>
-                  <td>{c.active ? <span className="tag-ok">활성</span> : <span className="halted-tag">비활성</span>}</td>
-                  <td>
-                    {c.active && (
-                      <button className="text-btn danger tiny" disabled={busy} onClick={() => deactivate(c.id)}>
-                        비활성화
-                      </button>
-                    )}
-                  </td>
-                </tr>
-              ))}
-              {contracts.length === 0 && (
-                <tr>
-                  <td colSpan={8} className="desc-cell">
-                    등록된 옵션 계약이 없어요.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
+        {contracts.length === 0 ? (
+          <p className="aempty">등록된 옵션 계약이 없어요.</p>
+        ) : (
+          <div className="team-list">
+            {contracts.map((c) => (
+              <div key={c.id} className="team-card">
+                <div className="tc-head">
+                  <span className="tc-name">
+                    {stockName(c.stock_id)} {c.option_type === 'put' ? '풋' : '콜'}
+                  </span>
+                  {c.active ? (
+                    <span className="tag-ok">활성</span>
+                  ) : (
+                    <span className="halted-tag">비활성</span>
+                  )}
+                  {c.active && (
+                    <button
+                      className="text-btn danger tiny tc-del"
+                      disabled={busy}
+                      onClick={() => deactivate(c.id)}
+                    >
+                      비활성화
+                    </button>
+                  )}
+                </div>
+                <div className="tc-stats">
+                  <div>
+                    <span className="k">행사가</span>
+                    <span className="v num">₩{num(c.strike)}</span>
+                  </div>
+                  <div>
+                    <span className="k">만기</span>
+                    <span className="v num">
+                      R{c.expiry_round}
+                      {c.expiry_round <= currentRound ? ' (지남)' : ''}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="k">변동성 σ</span>
+                    <span className="v num">{(Number(c.implied_vol) * 100).toFixed(1)}%</span>
+                  </div>
+                  <div>
+                    <span className="k">무위험금리 r</span>
+                    <span className="v num">{(Number(c.risk_free_rate) * 100).toFixed(1)}%</span>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </section>
 
       <OptionEditor

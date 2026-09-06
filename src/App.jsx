@@ -3,6 +3,8 @@ import { deriveAccount } from './account'
 import { makeActions } from './actions'
 import { buildStocks, execPriceOf, loadAll, refetchMine, subscribeSignals, yearOf } from './gameData'
 import { roundStepIndex } from './chart'
+import { quarterOfStep, monthOfStep } from './quarters'
+import { quarterEvent } from './quarterEvents'
 import { useTheme } from './theme'
 import {
   loadTeam,
@@ -12,13 +14,15 @@ import {
   logout as authLogout,
   restore,
 } from './auth'
-import { errorText } from './supabase'
+import { errorText, rpc } from './supabase'
 
 import Login from './components/Login'
 import RotateNotice from './components/RotateNotice'
 import Header from './components/Header'
+import TradeStatusStrip from './components/TradeStatusStrip'
 import StockList from './components/StockList'
 import Chart from './components/Chart'
+import JudgmentDock from './components/JudgmentDock'
 import OrderSheet from './components/OrderSheet'
 import ModeTabs from './components/ModeTabs'
 import PayoffDiagram from './components/PayoffDiagram'
@@ -143,11 +147,21 @@ function Student({ theme, onToggleTheme }) {
   // 라운드 타이머. 서버 round_ends_at이 유일한 기준이다(place_order도 서버 시각으로 검사).
   // 클라이언트 시계가 어긋나도 표시만 틀릴 뿐, 마감 이후 거래는 서버가 거부한다.
   const endsAt = game?.round_ends_at ? new Date(game.round_ends_at).getTime() : null
-  const remainingMs = endsAt ? Math.max(0, endsAt - nowTs) : 0
+  // 일시정지(0049) 중이면 카운트다운을 그 시각에서 얼린다.
+  const pausedAt = game?.round_paused_at ? new Date(game.round_paused_at).getTime() : null
+  const paused = pausedAt != null
+  const remainingMs = endsAt ? Math.max(0, endsAt - (pausedAt ?? nowTs)) : 0
   const durationMs = (game?.round_duration_seconds ?? 600) * 1000
-  const tradingOpen = started && !locked && remainingMs > 0
-  // 타이머 표시 상태: live(카운트다운) / closed(마감) / waiting(대기) / null(숨김)
-  const timerState = started && !ended ? (tradingOpen ? 'live' : endsAt ? 'closed' : 'waiting') : null
+  const tradingOpen = started && !locked && !paused && remainingMs > 0
+  // 타이머 표시 상태: live(카운트다운) / paused(일시정지) / closed(마감) / waiting(대기) / null(숨김)
+  const timerState =
+    started && !ended ? (paused ? 'paused' : tradingOpen ? 'live' : endsAt ? 'closed' : 'waiting') : null
+  // 거래 상태 스트립 — 위 파생값만 조합한다(새 상태 계산 없음)
+  const stripState = ended ? 'ended' : !started ? 'before' : timerState ?? 'waiting'
+
+  // 장중 분기(1..4)·가상 월(1..12) — 라운드 진행률(liveStep 0..251)만으로. 거래 중이 아니면 0.
+  const liveQuarter = tradingOpen ? quarterOfStep(liveStep) : 0
+  const liveMonth = tradingOpen ? monthOfStep(liveStep) : 0
 
   // 안 읽은 속보 개수 — 종 버튼 깜빡임·배지용
   const unreadBc = broadcasts.reduce((n, b) => n + (Number(b.id) > seenBc ? 1 : 0), 0)
@@ -255,6 +269,45 @@ function Student({ theme, onToggleTheme }) {
     }
   }, [remainingMs, tradingOpen, pushToast])
 
+  // 장중 분기 전환(Q1→Q2, Q2→Q3, Q3→Q4) 시 속보/힌트 토스트를 1회.
+  // qPrev = 이 라운드에서 마지막으로 관찰한 분기. 0 = 아직 관찰 전(첫 관찰은 알리지 않는다 —
+  // 학생이 라운드 중간에 접속해도 지나간 분기 알림이 소급 발사되지 않게).
+  const qPrev = useRef(0)
+  useEffect(() => {
+    qPrev.current = 0 // 라운드가 바뀌면 초기화
+  }, [game?.current_round])
+  useEffect(() => {
+    if (!tradingOpen || liveQuarter === 0) {
+      qPrev.current = 0
+      return
+    }
+    const was = qPrev.current
+    qPrev.current = liveQuarter
+    if (was === 0 || liveQuarter <= was) return // 첫 관찰이거나 되돌이 — 알림 없음
+    const round = game?.current_round
+    let cancelled = false
+    ;(async () => {
+      // 서버(get_quarter_events, 0048)는 "현재 분기까지"만 준다 — 전환 직후 다시 읽어야 새 분기가 포함된다.
+      // 실패하거나 그 분기 항목이 없으면 임시 클라이언트 config(quarterEvents.js)로 폴백.
+      const r = await rpc('get_quarter_events')
+      if (cancelled) return
+      const byQ = {}
+      if (r.ok) for (const e of r.rows ?? []) byQ[Number(e.quarter)] = e
+      for (let q = was + 1; q <= liveQuarter; q++) {
+        const s = byQ[q]
+        const ev =
+          s && (s.eventNews || s.hintText)
+            ? { news: s.eventNews, hint: s.hintText }
+            : quarterEvent(round, q)
+        if (ev?.news) pushToast(`[${q}분기] ${ev.news}`, 'gold')
+        if (ev?.hint) pushToast(`💡 ${ev.hint}`, 'gold')
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [liveQuarter, tradingOpen, game?.current_round, pushToast])
+
   // 파산 배너의 "닫기"는 이 라운드·이 기기 한정 — 연도가 넘어가면 (가격 재평가로 상황이 바뀌므로) 다시 보여준다
   useEffect(() => {
     setBankruptSeen(false)
@@ -319,7 +372,9 @@ function Student({ theme, onToggleTheme }) {
               pushToast('새로운 힌트가 도착했어요', 'gold', () => setHintsOpen(true))
             }
           } else if (sig.kind === 'timer_started') {
-            pushToast('거래 시간이 시작됐어요', 'up')
+            pushToast(sig.payload?.resumed ? '거래가 재개됐어요' : '거래 시간이 시작됐어요', 'up')
+          } else if (sig.kind === 'timer_paused') {
+            pushToast('거래가 일시정지됐어요', 'down')
           } else if (sig.kind === 'broadcast') {
             // 새 속보 도착 → 재난문자처럼 팝업으로 먼저 띄운다. 회수(deleted) 신호면 조용히 갱신만.
             if (!sig.payload?.deleted && fresh.broadcasts?.length) setAlertBc(fresh.broadcasts[0])
@@ -505,6 +560,7 @@ function Student({ theme, onToggleTheme }) {
         remainingMs={remainingMs}
         durationMs={durationMs}
         timerState={timerState}
+        quarter={liveQuarter ? { n: liveQuarter, month: liveMonth } : null}
         bellTotal={broadcasts.length}
         bellCount={unreadBc}
         onOpenBroadcasts={() => setBcOpen(true)}
@@ -515,9 +571,7 @@ function Student({ theme, onToggleTheme }) {
         onLogout={handleLogout}
       />
 
-      {!started && (
-        <div className="notstarted">아직 대회가 시작되지 않았어요. 강사 선생님을 기다려 주세요.</div>
-      )}
+      <TradeStatusStrip state={stripState} />
       {bankrupt && !bankruptSeen && (
         <div className="bankrupt-warn">
           <span>
@@ -547,18 +601,30 @@ function Student({ theme, onToggleTheme }) {
         />
         {mode === 'spot' ? (
           <>
-            <Chart
-              stock={selected}
-              onOpenFinancial={() => setFinOpen(true)}
-              onOpenMarket={started ? () => setMarketOpen(true) : undefined}
-              strokes={drawings[selected.code] ?? []}
-              onStrokesChange={setStrokes}
-              tradingOpen={tradingOpen}
-              round={game.current_round}
-              roundYearMap={game.round_year_map}
-              timerState={timerState}
-              game={game}
-            />
+            <div className="col chart-col">
+              <Chart
+                stock={selected}
+                onOpenFinancial={() => setFinOpen(true)}
+                onOpenMarket={started ? () => setMarketOpen(true) : undefined}
+                strokes={drawings[selected.code] ?? []}
+                onStrokesChange={setStrokes}
+                tradingOpen={tradingOpen}
+                round={game.current_round}
+                roundYearMap={game.round_year_map}
+                timerState={timerState}
+                game={game}
+              />
+              <JudgmentDock
+                stock={selected}
+                financials={financials}
+                macro={macro}
+                round={{ round: game.current_round, year }}
+                hints={hints}
+                onOpenFinancial={() => setFinOpen(true)}
+                onOpenMarket={started ? () => setMarketOpen(true) : undefined}
+                onOpenHints={() => setHintsOpen(true)}
+              />
+            </div>
             <OrderSheet
               key={selected.code}
               stock={selected}
