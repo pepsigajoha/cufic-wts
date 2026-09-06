@@ -763,6 +763,25 @@ header {
   overflow-y: auto;
   padding: 0 8px 8px;
 }
+/* 첫 로드에 종목 행이 위에서 순차로 나타난다(마운트 시 1회). 정렬 변경 땐 리마운트가 아니라 재생 안 됨. */
+.rows .row {
+  animation: row-in 0.3s var(--ease-out) both;
+}
+.rows .row:nth-child(1) { animation-delay: 20ms; }
+.rows .row:nth-child(2) { animation-delay: 40ms; }
+.rows .row:nth-child(3) { animation-delay: 60ms; }
+.rows .row:nth-child(4) { animation-delay: 80ms; }
+.rows .row:nth-child(5) { animation-delay: 100ms; }
+.rows .row:nth-child(6) { animation-delay: 120ms; }
+.rows .row:nth-child(7) { animation-delay: 140ms; }
+.rows .row:nth-child(8) { animation-delay: 160ms; }
+.rows .row:nth-child(n + 9) { animation-delay: 180ms; }
+@keyframes row-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
 .row {
   display: flex;
   align-items: center;
@@ -1205,10 +1224,28 @@ header {
   stroke: var(--gold);
   stroke-width: 1.5;
   opacity: 0.85;
+  /* 종목을 바꾸면(React key 변경 → 리마운트) 선이 왼→오로 한 번 그려진다.
+     pathLength="1" 로 길이를 정규화해 실제 길이와 무관하게 동작한다. */
+  stroke-dasharray: 1;
+  animation: line-draw 0.55s var(--ease-out);
+}
+@keyframes line-draw {
+  from {
+    stroke-dashoffset: 1;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
 }
 .price-fill {
   fill: url(#price-fill);
   stroke: none;
+  animation: fill-in 0.55s var(--ease-out);
+}
+@keyframes fill-in {
+  from {
+    opacity: 0;
+  }
 }
 .price-fill-stop-start {
   stop-color: var(--gold);
@@ -1900,7 +1937,10 @@ tr.me-row td {
 .dim {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.55);
+  background: rgba(0, 0, 0, 0.5);
+  /* 뒤 화면을 살짝 흐려 모달이 한 겹 위에 떠 있는 느낌 (미지원 브라우저는 dim만 적용) */
+  backdrop-filter: blur(3px);
+  -webkit-backdrop-filter: blur(3px);
   display: grid;
   place-items: center;
   z-index: 50;

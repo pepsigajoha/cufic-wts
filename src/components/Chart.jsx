@@ -283,8 +283,17 @@ export default function Chart({
               ))}
             </g>
 
-            {priceFillPath && <path className="price-fill" d={priceFillPath} />}
-            <polyline className="price-line" points={pricePoints} />
+            {/* key={stock.code}: 종목을 바꿀 때만 다시 마운트돼 draw-on 애니메이션이 1회 재생된다.
+                (같은 종목의 장중 틱은 points만 갱신 → 애니메이션 재생 안 됨) */}
+            {priceFillPath && (
+              <path key={stock.code + '-fill'} className="price-fill" d={priceFillPath} />
+            )}
+            <polyline
+              key={stock.code + '-line'}
+              className="price-line"
+              points={pricePoints}
+              pathLength="1"
+            />
 
             {/* 지금 가격 수준을 가로질러 보여주는 기준선 + 그 위의 펄스 점(실시간 틱).
                 가격선의 끝점도 y(livePrice)로 그리므로(위 tipY) 이 셋은 항상 정확히 같은

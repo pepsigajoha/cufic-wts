@@ -21,6 +21,37 @@ function useValueFlash(value) {
   return flash
 }
 
+const prefersReducedMotion = () =>
+  typeof window !== 'undefined' &&
+  window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
+
+// 값이 바뀌면 이전 값에서 새 값까지 ~0.6초 굴러 올라간다(easeOutCubic).
+// 라운드 넘길 때 평가금액이 "움직이는" 느낌. 모션 최소화 설정이면 즉시 반영.
+function useCountUp(value, ms = 600) {
+  const [display, setDisplay] = useState(value)
+  const fromRef = useRef(value)
+  const rafRef = useRef(0)
+  useEffect(() => {
+    const from = fromRef.current
+    fromRef.current = value
+    if (from === value || !Number.isFinite(from) || !Number.isFinite(value) || prefersReducedMotion()) {
+      setDisplay(value)
+      return
+    }
+    const start = performance.now()
+    const tick = (now) => {
+      const t = Math.min(1, (now - start) / ms)
+      const eased = 1 - Math.pow(1 - t, 3)
+      setDisplay(from + (value - from) * eased)
+      if (t < 1) rafRef.current = requestAnimationFrame(tick)
+      else setDisplay(value)
+    }
+    rafRef.current = requestAnimationFrame(tick)
+    return () => cancelAnimationFrame(rafRef.current)
+  }, [value, ms])
+  return display
+}
+
 /**
  * 상단 바 — 정보 위계 3그룹.
  *   1차(hdr-primary)   : 현재 라운드 · 거래 타이머 · 평가금액 — 지금 상황을 좌우하는 정보. 절대 줄지 않는다.
@@ -50,6 +81,10 @@ export default function Header({
 }) {
   const dir = dirOf(account.pnl)
   const eqFlash = useValueFlash(account.equity)
+  // 평가금액을 굴려 올리고, 손익%는 그 값에서 파생해 함께 움직인다(원금 = 평가금액 − 손익).
+  const eqRoll = useCountUp(account.equity)
+  const principal = account.equity - account.pnl
+  const pnlPctRoll = principal ? ((eqRoll - principal) / principal) * 100 : account.pnlPct
   const roundText = ended ? '🏁 최종' : round.round === 0 ? '시작 전' : `ROUND ${round.round}`
   const roundSub = ended || round.round >= 1 ? `${round.year}년` : '대기 중'
 
@@ -78,9 +113,9 @@ export default function Header({
 
         <span className="hp-equity">
           <span className="hpe-k">평가금액</span>
-          <span className={'hpe-v num ' + eqFlash}>₩ {num(account.equity)}</span>
+          <span className={'hpe-v num ' + eqFlash}>₩ {num(eqRoll)}</span>
           <span className={'hpe-p num ' + dir}>
-            {arrowOf(account.pnl)} {pct(account.pnlPct)}
+            {arrowOf(account.pnl)} {pct(pnlPctRoll)}
           </span>
         </span>
       </div>
