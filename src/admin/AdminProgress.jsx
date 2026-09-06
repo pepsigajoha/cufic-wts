@@ -224,25 +224,43 @@ export default function AdminProgress({
     await refresh()
   }
 
-  // 다음 할 일 — 상태 기반으로 지금 눌러야 할 버튼 하나를 강조.
-  // id는 현재 라운드 카드와의 버튼 중복을 막는 데 쓴다(같은 버튼은 한 곳에서만).
-  let nextAction = null
-  if (notStarted)
-    nextAction = { id: 'advance', label: '대회 시작', msg: '학생 입장 확인 후 시작하세요', run: () => setConfirm('advance') }
-  else if (!endsAt)
-    nextAction = { id: 'timer', label: '타이머 시작', msg: '타이머를 시작해야 매매가 열려요', run: startTimerNow }
-  else if (timerRunning) nextAction = null // 진행 중엔 타이머 카드가 주인공
-  else if (isLast)
-    nextAction = { id: 'end', label: '대회 종료', msg: '마지막 라운드예요. 종료하면 최종 정산됩니다', run: () => setConfirm('end') }
-  else
-    nextAction = { id: 'advance', label: '다음 연도로', msg: '정산하면 순위가 갱신되고 힌트가 나갑니다', run: () => setConfirm('advance') }
-
-  // 현재 라운드 카드의 큰 버튼은 '다음 할 일'이 같은 버튼을 이미 보이면 숨긴다(출처 한 곳).
-  const roundCardActionId = isLast ? 'end' : 'advance'
-  const showRoundBtn = !(nextAction && nextAction.id === roundCardActionId)
+  // 콘솔 히어로의 "다음 할 일" — 상태 기반으로 지금 눌러야 할 버튼 딱 하나.
+  const timerState = paused ? 'paused' : timerRunning ? 'live' : endsAt ? 'closed' : 'waiting'
+  let consoleAction
+  if (!endsAt) {
+    consoleAction = {
+      label: `타이머 시작 (${durMin}분)`,
+      msg: '타이머를 시작해야 매매가 열려요',
+      run: startTimerNow,
+      tone: 'prime',
+    }
+  } else if (timerRunning) {
+    consoleAction = isLast
+      ? { label: '대회 종료', msg: '마지막 라운드예요', run: () => setConfirm('end'), tone: 'danger' }
+      : {
+          label: '다음 연도로',
+          msg: `거래 중이에요 (${mmss(remainingMs)} 남음) — 마감을 기다리거나 지금 넘길 수 있어요`,
+          run: () => setConfirm('advance'),
+          tone: 'ghost',
+        }
+  } else {
+    consoleAction = isLast
+      ? {
+          label: '대회 종료',
+          msg: '마지막 라운드예요. 종료하면 최종 정산됩니다',
+          run: () => setConfirm('end'),
+          tone: 'danger',
+        }
+      : {
+          label: '다음 연도로 넘어가기',
+          msg: '정산하면 순위가 갱신되고 힌트가 나갑니다',
+          run: () => setConfirm('advance'),
+          tone: 'prime',
+        }
+  }
 
   return (
-    <div className="apanel">
+    <div className="apanel console">
       {/* 시작 전: 대회 준비 — 순서대로 ①데이터셋 ②입장 PIN ③입장 확인 ④대회 시작 */}
       {notStarted && (
         <section className="acard prep-card">
@@ -333,62 +351,93 @@ export default function AdminProgress({
         </section>
       )}
 
-      {nextAction && !notStarted && (
-        <section className="acard next-action">
-          <div className="na-info">
-            <span className="na-label">다음 할 일</span>
-            <span className="na-msg">{nextAction.msg}</span>
-          </div>
-          <button className="act-btn prime na-btn" disabled={busy} onClick={nextAction.run}>
-            {nextAction.label}
-          </button>
-        </section>
-      )}
+      {/* ── 콘솔 히어로: 라운드 · 타이머 · 다음 할 일을 한 블록에 ── */}
       {!notStarted && (
-        <section className="acard big">
-          <span className="acap">현재 라운드</span>
-          <div className="round-big">
-            <b>
+        <section className="acard console-hero">
+          <div className="ch-zone ch-round">
+            <span className="ch-lbl">현재 라운드</span>
+            <b className="ch-round-val">
               ROUND {cur} · {game.round_year_map?.[String(cur)]}년
             </b>
-            <span>
+            <span className="ch-round-meta">
               전체 {total}라운드 중 {cur}번째
             </span>
+            <div className="src-row">
+              <span className="src-label">시세 생성</span>
+              <SourceBadge info={pathSources[Number(game.round_year_map?.[String(cur)])]} />
+            </div>
           </div>
 
-          <div className="src-row">
-            <span className="src-label">이번 라운드 시세 생성 방식</span>
-            <SourceBadge info={pathSources[Number(game.round_year_map?.[String(cur)])]} />
-          </div>
-
-          {showRoundBtn && (
-            <div className="arow">
-              {!isLast ? (
-                <button className="act-btn prime" disabled={busy} onClick={() => setConfirm('advance')}>
-                  다음 연도로 넘어가기 (순위 갱신)
+          <div className="ch-zone ch-timer">
+            <span className="ch-lbl">거래 타이머</span>
+            <TimerPill remainingMs={remainingMs} durationMs={durationMs} state={timerState} />
+            <p className="anote">
+              {paused
+                ? '일시정지됨 — 학생 매매 잠금. [재개]하면 남은 시간이 그대로 이어져요'
+                : timerRunning
+                  ? '거래 진행 중 — 학생들이 매매할 수 있어요'
+                  : endsAt
+                    ? '거래 마감 — 순위 확인 후 다음 연도로 넘기세요'
+                    : `타이머를 시작하면 ${durMin}분간 거래가 열려요`}
+            </p>
+            {timerRunning && (
+              <div className="timer-adjust">
+                <button className="act-btn adj" disabled={busy || paused} onClick={() => adjustTimer(-1)}>
+                  − 1분
                 </button>
-              ) : (
-                <button className="act-btn danger" disabled={busy} onClick={() => setConfirm('end')}>
-                  대회 종료
+                <span className="adj-hint">시간 조정</span>
+                <button className="act-btn adj" disabled={busy || paused} onClick={() => adjustTimer(1)}>
+                  + 1분
+                </button>
+              </div>
+            )}
+            <div className="ch-timer-btns">
+              {timerRunning && (
+                <button className="act-btn" disabled={busy} onClick={togglePause}>
+                  {paused ? '▶ 재개' : '⏸ 일시정지'}
+                </button>
+              )}
+              {endsAt && (
+                <button className="act-btn" disabled={busy} onClick={startTimerNow}>
+                  타이머 다시 시작 ({durMin}분)
                 </button>
               )}
             </div>
-          )}
+          </div>
 
-          {!isLast && (
-            <p className="anote">
-              누르면 <b>{nextYear}년 가격이 공개</b>되고 보유종목이 재평가돼 <b>순위가 갱신</b>되며,
-              새 순위로 <b>힌트가 자동 배분</b>됩니다(하위권 우대). 순위를 확인한 뒤 아래에서
-              <b>타이머를 시작</b>하면 거래가 열립니다. 되돌릴 수 없습니다.
-            </p>
-          )}
+          <div className="ch-zone ch-action">
+            <span className="ch-lbl">다음 할 일</span>
+            <button
+              className={
+                'act-btn ch-action-btn' +
+                (consoleAction.tone === 'prime'
+                  ? ' prime'
+                  : consoleAction.tone === 'danger'
+                    ? ' danger'
+                    : '')
+              }
+              disabled={busy}
+              onClick={consoleAction.run}
+            >
+              {consoleAction.label}
+            </button>
+            <span className="ch-action-msg">{consoleAction.msg}</span>
+          </div>
         </section>
       )}
 
-      {/* 라운드별 시세 생성 방식 — 한눈에 */}
+      {/* 라운드 넘기기 상세 안내 — 넘기기 전에만 */}
+      {!notStarted && !isLast && !timerRunning && (
+        <p className="console-hint anote">
+          [다음 연도로]를 누르면 <b>{nextYear}년 가격이 공개</b>되고 보유종목이 재평가돼{' '}
+          <b>순위가 갱신</b>되며, 새 순위로 <b>힌트가 자동 배분</b>됩니다(하위권 우대). 되돌릴 수 없습니다.
+        </p>
+      )}
+
+      {/* 참고: 라운드별 시세 생성 방식 (접기) */}
       {Object.keys(game.round_year_map ?? {}).length > 0 && (
-        <section className="acard">
-          <span className="acap">라운드별 시세 생성 방식</span>
+        <details className="acard console-ref">
+          <summary className="acap">라운드별 시세 생성 방식</summary>
           <p className="anote">
             📊 엑셀·브리지 = 연말가를 고정하고 그 사이를 브라운 브리지로 보간 · 🧮 수학엔진 = 7팩터/GARCH
             엔진이 경로와 연말가를 함께 산출. [주가 생성기] 탭에서 다시 만들 수 있어요.
@@ -406,54 +455,11 @@ export default function AdminProgress({
                 </div>
               ))}
           </div>
-        </section>
+        </details>
       )}
 
-      {/* 거래 타이머 — 순위 확인 후 여기서 거래를 연다 */}
-      {!notStarted && (
-        <section className="acard big">
-          <span className="acap">거래 타이머</span>
-          <TimerPill
-            remainingMs={remainingMs}
-            durationMs={durationMs}
-            state={paused ? 'paused' : timerRunning ? 'live' : endsAt ? 'closed' : 'waiting'}
-          />
-          <p className="anote">
-            {paused
-              ? '일시정지됨 — 학생 매매 잠금. [재개]하면 남은 시간이 그대로 이어져요'
-              : timerRunning
-                ? '거래 진행 중 — 학생들이 매매할 수 있어요'
-                : endsAt
-                  ? '거래 마감 — 순위 확인 후 다음 연도로 넘기세요'
-                  : `타이머를 시작하면 ${durMin}분간 거래가 열려요`}
-          </p>
-          {timerRunning && (
-            <div className="timer-adjust">
-              <button className="act-btn adj" disabled={busy || paused} onClick={() => adjustTimer(-1)}>
-                − 1분
-              </button>
-              <span className="adj-hint">거래 시간 조정</span>
-              <button className="act-btn adj" disabled={busy || paused} onClick={() => adjustTimer(1)}>
-                + 1분
-              </button>
-            </div>
-          )}
-          {timerRunning && (
-            <div className="arow">
-              <button className="act-btn" disabled={busy} onClick={togglePause}>
-                {paused ? '▶ 거래 재개' : '⏸ 거래 일시정지'}
-              </button>
-            </div>
-          )}
-          <div className="arow">
-            <button className="act-btn prime" disabled={busy} onClick={startTimerNow}>
-              {timerRunning ? `타이머 다시 시작 (${durMin}분)` : `타이머 시작 (${durMin}분)`}
-            </button>
-          </div>
-        </section>
-      )}
-
-      {/* 속보 · 공통 힌트 — 전체 조에 즉시 발송 */}
+      {/* ── 도구: 속보 발송 + 거래 현황 ── */}
+      <div className="console-tools">
       <section className="acard">
         <span className="acap">속보 · 공통 힌트 (전체 발송)</span>
         <p className="anote">전 조 화면에 종 알림으로 즉시 뜹니다. 조별 등급 힌트와 별개예요.</p>
@@ -513,6 +519,7 @@ export default function AdminProgress({
           )}
         </section>
       )}
+      </div>
 
       {/* 게임 설정 · 데이터 점검 · 게임 리셋 → [시스템] 탭으로 이동 (AdminSystem.jsx) */}
 
