@@ -36,7 +36,7 @@ function EqToggle({ view, setView }) {
  *   · 자산 곡선  = 로그 스케일 + 억 단위 축약 (몇 배 커졌는지 읽힘)
  *   · 라운드별 수익률 = 라운드마다 몇 % 벌었나 (막대). 토글로 전환.
  */
-function EquityChart({ points }) {
+export function EquityChart({ points }) {
   const [view, setView] = useState('curve')
   const W = 660
   const H = 260

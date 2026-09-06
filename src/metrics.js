@@ -88,3 +88,103 @@ export const MACRO_METRICS = [
   { key: 'oil', db: 'oil', xlsx: '유가', label: '국제유가', unit: '$', round: true, desc: '원유 1배럴 가격(달러)이에요. 오르면 항공·운송·제조 비용이 커져요.' },
   { key: 'gold', db: 'gold', xlsx: '금($', label: '금', unit: '$/oz', round: true, desc: '금 1온스 가격(달러)이에요. 불안할수록 오르는 안전자산 — 위험 회피 심리의 지표예요.' },
 ]
+
+// ── 주가 생성기용: 다음 해 재무제표(입력 7개) 추정.
+//
+// [왜] 엔진이 새 가격 경로를 만들면 시드에 고정돼 있던 재무제표가 그 방향과 어긋난다
+// (힌트↔등락 정합성 붕괴 — docs/DATA_GUIDE, data.test 참고). 이 함수가 "가격이 이만큼
+// 움직였으면 실적은 대략 이랬을 것"을 결정적으로 계산한다. LLM은 이 숫자에 맞는 설명
+// 문장만 쓴다 — 숫자·방향은 전부 여기서.
+//
+// 모델(단순·결정적, 계수는 교보재팀이 조정 가능):
+//   매출   = 전년 × (1 + a·수익률 + b·물가)
+//   영업비 = 고정비(물가만 반영) + 변동비 × (1 + 매출성장 − c·수익률)   ← 오른 해엔 마진 확대
+//   부채   = 전년 × (1 + b·물가 − d·max(0,수익률))                      ← 크게 오른 해엔 소폭 디레버리지
+//   영업외비 = 부채 × 유효조달금리,  유효금리 += e·Δ기준금리
+//   자본   = 전년자본 + f·당기순이익 − 손상차손
+//   손상차손 = 가격이 −50%보다 더 빠진 해에 (−0.5 − 수익률)의 g 배만큼 자산을 상각(최대 60%)
+//   자산   = 자본 + 부채  → 유동/비유동은 전년 비율로 분할
+// 자본이 음수가 되면(자본잠식) 그대로 둔다 — deriveFinancials가 impaired 처리한다.
+export const DEFAULT_FIN_MODEL = {
+  revToReturn: 0.35, // a: 가격 +100% → 매출 +35%
+  inflPassThru: 0.6, // b: 물가상승률의 60%가 명목 매출·부채·고정비에 반영
+  marginLift: 0.12, // c: 가격 상승 시 영업마진 확대폭
+  fixedCostShare: 0.4, // 영업비 중 매출과 무관하게 버티는 고정비 비중(영업 레버리지)
+  deleverOnGain: 0.05, // d: 크게 오른 해에 부채 축소
+  rateToInterest: 0.5, // e: 기준금리 +1%p → 유효 조달금리 +0.5%p
+  retainedRatio: 0.5, // f: 당기순이익의 50%가 자본에 유보(나머지는 배당 등)
+  crashWritedown: 0.5, // g: −50% 아래 초과분의 절반을 자산 손상차손으로
+}
+
+const clampFrac = (v, lo, hi) => Math.max(lo, Math.min(hi, v))
+const nnInt = (v) => (Number.isFinite(v) && v > 0 ? Math.round(v) : 0) // 음수·NaN 방지 + 정수
+
+/**
+ * 다음 해 재무 입력 7개를 추정한다.
+ * @param {object|null} prev  전년 입력 7개(camelCase). null이면 null.
+ * @param {object} ctx
+ * @param {number} ctx.priceReturn  (다음해 가격 − 올해 가격) / 올해 가격 (예: 0.18 = +18%)
+ * @param {{rate?:number, cpi?:number}} [ctx.macroPrev]  올해 시황 (%)
+ * @param {{rate?:number, cpi?:number}} [ctx.macroNext]  다음해 시황 (%)
+ * @param {Partial<typeof DEFAULT_FIN_MODEL>} [model]
+ * @returns {object|null} 다음 해 입력 7개(camelCase 정수)
+ */
+export function deriveNextFinancials(prev, ctx = {}, model = DEFAULT_FIN_MODEL) {
+  if (!prev) return null
+  const m = { ...DEFAULT_FIN_MODEL, ...model }
+  const r = Number(ctx.priceReturn) || 0
+
+  const cpiNext = Number(ctx.macroNext?.cpi)
+  const infl = Number.isFinite(cpiNext) ? clampFrac(cpiNext / 100, -0.1, 0.3) : 0
+  const rp = Number(ctx.macroPrev?.rate)
+  const rn = Number(ctx.macroNext?.rate)
+  const dRate = Number.isFinite(rp) && Number.isFinite(rn) ? (rn - rp) / 100 : 0
+
+  const CA0 = Math.max(0, Number(prev.currentAssets) || 0)
+  const NCA0 = Math.max(0, Number(prev.noncurrentAssets) || 0)
+  const CL0 = Math.max(0, Number(prev.currentLiabilities) || 0)
+  const NCL0 = Math.max(0, Number(prev.noncurrentLiabilities) || 0)
+  const rev0 = Math.max(0, Number(prev.revenue) || 0)
+  const opex0 = Math.max(0, Number(prev.operatingExpense) || 0)
+  const nonop0 = Math.max(0, Number(prev.nonoperatingExpense) || 0)
+
+  const assets0 = CA0 + NCA0
+  const debt0 = CL0 + NCL0
+  const equity0 = assets0 - debt0
+  const caRatio = assets0 > 0 ? CA0 / assets0 : 0.5
+
+  // 손익
+  const revGrowth = m.revToReturn * r + m.inflPassThru * infl
+  const revenue = nnInt(rev0 * (1 + revGrowth))
+  const fixed = opex0 * m.fixedCostShare * (1 + m.inflPassThru * infl)
+  const variable = opex0 * (1 - m.fixedCostShare) * (1 + revGrowth - m.marginLift * r)
+  const operatingExpense = nnInt(fixed + variable)
+
+  // 부채
+  const debtGrowth = m.inflPassThru * infl - m.deleverOnGain * Math.max(0, r)
+  const currentLiabilities = nnInt(CL0 * (1 + debtGrowth))
+  const noncurrentLiabilities = nnInt(NCL0 * (1 + debtGrowth))
+  const debt1 = currentLiabilities + noncurrentLiabilities
+
+  // 영업외비용(이자) — 부채 × 유효 조달금리, 금리 변화 반영
+  const effRate = Math.max(0, (debt0 > 0 ? nonop0 / debt0 : 0) + m.rateToInterest * dRate)
+  const nonoperatingExpense = nnInt(debt1 * effRate)
+
+  // 자본·자산
+  const netIncome = revenue - operatingExpense - nonoperatingExpense
+  const writedown = r < -0.5 ? clampFrac(m.crashWritedown * (-0.5 - r), 0, 0.6) : 0
+  const equity1 = equity0 + m.retainedRatio * netIncome - assets0 * writedown
+  const assets1 = equity1 + debt1
+  const currentAssets = nnInt(assets1 * caRatio)
+  const noncurrentAssets = nnInt(assets1 * (1 - caRatio))
+
+  return {
+    currentAssets,
+    noncurrentAssets,
+    currentLiabilities,
+    noncurrentLiabilities,
+    revenue,
+    operatingExpense,
+    nonoperatingExpense,
+  }
+}

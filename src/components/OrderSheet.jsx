@@ -15,6 +15,8 @@ import QtyStepper, { QtyRatios } from './QtyStepper'
  */
 export default function OrderSheet({
   stock,
+  execPrice = 0, // 장중 스텝 체결가(App이 라운드 진행률로 계산). 0이면 stock.price로 폴백.
+  stepIndex = 251, // 지금 가상 며칠차(0..251) — 안내 표시용
   cash,
   onOrder,
   onSelectStock,
@@ -26,27 +28,35 @@ export default function OrderSheet({
   hasTraded,
   onNotify,
 }) {
-  // 수량은 이 종목에 한정된 임시값. App이 key={종목코드}로 리마운트하므로 종목을 바꾸면 0으로 초기화된다.
-  const [buyQty, setBuyQty] = useState(0)
-  const [sellQty, setSellQty] = useState(0)
+  // 증권사 주문창처럼 [매수 | 매도] 토글 하나로 전환한다. 수량은 이 종목·이 방향에 한정된 임시값 —
+  // App이 key={종목코드}로 리마운트하므로 종목을 바꾸면 0으로 초기화되고, 방향을 바꿔도 0으로 되돌린다.
+  const [side, setSide] = useState('buy')
+  const [qty, setQty] = useState(0)
+  const isBuy = side === 'buy'
   const pos = positionPnl(stock)
 
-  const buyable = stock.halted ? 0 : Math.floor(cash / stock.price)
+  const pickSide = (s) => {
+    setSide(s)
+    setQty(0)
+  }
+
+  // 체결은 장중 스텝 가격으로 일어난다 — 예상금액·최대수량을 그 값에 맞춘다(연말 확정가 stock.price가 아니라).
+  const unit = execPrice > 0 ? execPrice : stock.price
+  const buyable = stock.halted || unit <= 0 ? 0 : Math.floor(cash / unit)
   const sellable = stock.halted ? 0 : stock.holding
 
   // 지금 보유 중인 종목 — 무엇을 얼마에 갖고 있는지
   const held = stocks.filter((s) => s.holding > 0)
   const holdingsValue = held.reduce((sum, s) => sum + s.holding * s.price, 0)
 
-  const canBuy = tradingOpen && !stock.halted && !placing && buyQty > 0 && buyQty <= buyable
-  const canSell = tradingOpen && !stock.halted && !placing && sellQty > 0 && sellQty <= sellable
+  const max = isBuy ? buyable : sellable
+  const canSubmit = tradingOpen && !stock.halted && !placing && qty > 0 && qty <= max
   // 거래 대기(타이머 밖)·거래정지면 매수·매도 입력 전체를 완전히 잠근다(양쪽 동일 시각)
   const locked = !tradingOpen || stock.halted
 
-  const submit = async (side, qty) => {
+  const submit = async () => {
     await onOrder(side, qty)
-    if (side === 'buy') setBuyQty(0)
-    else setSellQty(0)
+    setQty(0)
   }
 
   // 거래가 닫힌 이유 (안내 문구). 종목별 거래정지는 아래에서 따로 안내한다.
@@ -75,37 +85,42 @@ export default function OrderSheet({
           </div>
         )}
 
-        {/* 매수 */}
-        <div className="ordsec">
-          <div className="cap">
-            <span className="t up">매수</span>
-            <span className="avail">최대 {num(buyable)}주</span>
+        {/* 장중 현재가 — 체결이 일어나는 값. 라운드 진행에 따라 초 단위로 바뀐다. */}
+        {!stock.halted && tradingOpen && (
+          <div className="est livenow">
+            <span>현재가 (가상 {Math.min(252, stepIndex + 1)}/252일차)</span>
+            <span className="num">₩ {num(unit)}</span>
           </div>
-          <QtyRatios
-            max={buyable}
-            onPick={setBuyQty}
-            maxLabel="최대"
-            disabled={locked}
-            onBlocked={() => onNotify?.('주문가능 금액으로 살 수 있는 수량이 없어요', 'down')}
-          />
-          <QtyStepper value={buyQty} onChange={setBuyQty} max={buyable} label="매수 수량" disabled={locked} />
-          <div className="est">
-            <span>예상 매수금액</span>
-            <span className="num">₩ {num(buyQty * stock.price)}</span>
-          </div>
-          <button className="act-btn buy" disabled={!canBuy} onClick={() => submit('buy', buyQty)}>
-            {placing ? '체결 중…' : '매수'}
-          </button>
-        </div>
+        )}
 
-        {/* 매도 */}
+        {/* 주문창 — [매수 | 매도] 토글 하나로 전환 */}
         <div className="ordsec">
-          <div className="cap">
-            <span className="t down">매도</span>
-            <span className="avail">보유 {num(stock.holding)}주</span>
+          <div className="side-tabs" role="tablist" aria-label="주문 방향">
+            <button
+              className={'side-tab buy' + (isBuy ? ' on' : '')}
+              role="tab"
+              aria-selected={isBuy}
+              onClick={() => pickSide('buy')}
+            >
+              매수
+            </button>
+            <button
+              className={'side-tab sell' + (!isBuy ? ' on' : '')}
+              role="tab"
+              aria-selected={!isBuy}
+              onClick={() => pickSide('sell')}
+            >
+              매도
+            </button>
           </div>
 
-          {stock.holding > 0 && (
+          <div className="cap">
+            <span className="avail">
+              {isBuy ? `주문가능 ${num(buyable)}주` : `보유 ${num(stock.holding)}주`}
+            </span>
+          </div>
+
+          {!isBuy && stock.holding > 0 && (
             <div className="posbox">
               <div className="r">
                 <span className="k">평균단가</span>
@@ -121,30 +136,35 @@ export default function OrderSheet({
           )}
 
           <QtyRatios
-            max={sellable}
-            onPick={setSellQty}
-            maxLabel="전량"
+            max={max}
+            onPick={setQty}
+            maxLabel={isBuy ? '최대' : '전량'}
             disabled={locked}
-            onBlocked={() => onNotify?.('팔 수 있는 보유 주식이 없어요', 'down')}
+            onBlocked={() =>
+              onNotify?.(
+                isBuy ? '주문가능 금액으로 살 수 있는 수량이 없어요' : '팔 수 있는 보유 주식이 없어요',
+                'down',
+              )
+            }
           />
           <QtyStepper
-            value={sellQty}
-            onChange={setSellQty}
-            max={sellable}
-            label="매도 수량"
-            maxLabel="전량"
+            value={qty}
+            onChange={setQty}
+            max={max}
+            label={isBuy ? '매수 수량' : '매도 수량'}
+            maxLabel={isBuy ? undefined : '전량'}
             disabled={locked}
           />
           <div className="est">
-            <span>예상 매도금액</span>
-            <span className="num">₩ {num(sellQty * stock.price)}</span>
+            <span>{isBuy ? '예상 매수금액' : '예상 매도금액'}</span>
+            <span className="num">₩ {num(qty * unit)}</span>
           </div>
           <button
-            className="act-btn sell"
-            disabled={!canSell}
-            onClick={() => submit('sell', sellQty)}
+            className={'act-btn ' + (isBuy ? 'buy' : 'sell')}
+            disabled={!canSubmit}
+            onClick={submit}
           >
-            {placing ? '체결 중…' : '매도'}
+            {placing ? '체결 중…' : isBuy ? '매수' : '매도'}
           </button>
         </div>
       </div>

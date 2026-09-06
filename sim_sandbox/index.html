@@ -1,0 +1,515 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>주가 시뮬레이션 시각화 테스트베드 (sandbox)</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+<script src="./priceSim.js"></script>
+<style>
+  :root {
+    --bg: #f5f6f8;
+    --panel: #ffffff;
+    --border: #e0e2e7;
+    --text: #1c1f26;
+    --muted: #6b7280;
+    --accent: #2f6feb;
+    --accent-soft: #eaf1ff;
+    --up: #d1372f;
+    --down: #2f5fd1;
+    --warn: #b45309;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, "Segoe UI", "Malgun Gothic", sans-serif;
+    background: var(--bg);
+    color: var(--text);
+  }
+  header {
+    padding: 14px 20px;
+    background: var(--panel);
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+  }
+  header h1 { font-size: 16px; margin: 0; }
+  header .sub { font-size: 12px; color: var(--muted); }
+  .layout {
+    display: grid;
+    grid-template-columns: 340px 1fr;
+    gap: 16px;
+    padding: 16px;
+    align-items: start;
+  }
+  @media (max-width: 900px) {
+    .layout { grid-template-columns: 1fr; }
+  }
+  .panel {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 14px;
+  }
+  .panel + .panel { margin-top: 14px; }
+  .panel h2 {
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--muted);
+    margin: 0 0 10px;
+  }
+  .field { margin-bottom: 12px; }
+  .field label {
+    display: flex;
+    justify-content: space-between;
+    font-size: 13px;
+    margin-bottom: 4px;
+  }
+  .field label .val { color: var(--accent); font-variant-numeric: tabular-nums; }
+  .field input[type="range"] { width: 100%; }
+  .field input[type="number"] {
+    width: 100%;
+    padding: 6px 8px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    font-size: 13px;
+  }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .presets { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .presets button {
+    font-size: 12px;
+    padding: 8px 6px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--accent-soft);
+    color: var(--accent);
+    cursor: pointer;
+  }
+  .presets button:hover { filter: brightness(0.96); }
+  .actions { display: flex; flex-direction: column; gap: 8px; }
+  .actions button {
+    padding: 10px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    font-size: 13px;
+    cursor: pointer;
+  }
+  .btn-primary { background: var(--accent); color: #fff; border-color: var(--accent); font-weight: 600; }
+  .btn-secondary { background: #fff; color: var(--text); }
+  .btn-export { background: #14895e; color: #fff; border-color: #14895e; }
+  details summary { cursor: pointer; font-size: 12px; color: var(--muted); margin-bottom: 8px; }
+  .status {
+    font-size: 12px;
+    color: var(--muted);
+    padding: 8px 10px;
+    background: var(--bg);
+    border-radius: 6px;
+    margin-top: 10px;
+    word-break: break-all;
+  }
+  .chart-wrap { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 14px; height: 420px; }
+  table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  th, td { padding: 6px 8px; border-bottom: 1px solid var(--border); text-align: right; white-space: nowrap; }
+  th:first-child, td:first-child { text-align: left; position: sticky; left: 0; background: var(--panel); }
+  .table-wrap { overflow-x: auto; max-height: 320px; overflow-y: auto; }
+  .note { font-size: 12px; color: var(--warn); background: #fff7ed; border: 1px solid #fde3c4; border-radius: 6px; padding: 8px 10px; margin-top: 10px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>📈 주가 시뮬레이션 시각화 테스트베드</h1>
+  <span class="sub">sim_sandbox 전용 — cufic 프로젝트 미접촉 · priceSim.js 7요인 엔진 사용</span>
+</header>
+
+<div class="layout">
+  <!-- ============ 왼쪽: 컨트롤 패널 ============ -->
+  <div>
+    <div class="panel">
+      <h2>프리셋 시나리오</h2>
+      <div class="presets">
+        <button onclick="applyPreset('boom')">정상 호황<br/><small>Normal Boom</small></button>
+        <button onclick="applyPreset('stagflation')">스태그플레이션 위기<br/><small>Stagflation Crisis</small></button>
+        <button onclick="applyPreset('fxOil')">고유가 수출 훈풍<br/><small>FX/Oil Tailwind</small></button>
+        <button onclick="applyPreset('blackswan')">고변동성 블랙스완<br/><small>High Vol / Black Swan</small></button>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>거시 파라미터</h2>
+      <div class="field">
+        <label>🏦 기준금리 (%) <span class="val" id="lbl-intR">2.0</span></label>
+        <input type="range" id="intR" min="0" max="10" step="0.25" value="2.0" oninput="syncLabels()" />
+      </div>
+      <div class="field">
+        <label>🧑‍🔧 실업률 (%) <span class="val" id="lbl-unemp">3.0</span></label>
+        <input type="range" id="unemp" min="1" max="15" step="0.1" value="3.0" oninput="syncLabels()" />
+      </div>
+      <div class="field">
+        <label>🛒 물가상승률 CPI (%) <span class="val" id="lbl-inf">2.0</span></label>
+        <input type="range" id="inf" min="-2" max="20" step="0.5" value="2.0" oninput="syncLabels()" />
+      </div>
+      <div class="field">
+        <label>🏭 GDP 성장률 (%) <span class="val" id="lbl-gdp">3.0</span></label>
+        <input type="range" id="gdp" min="-5" max="15" step="0.5" value="3.0" oninput="syncLabels()" />
+      </div>
+      <div class="field">
+        <label>🛍️ 소비심리 지수 <span class="val" id="lbl-sent">50</span></label>
+        <input type="range" id="sent" min="0" max="100" step="1" value="50" oninput="syncLabels()" />
+      </div>
+      <div class="field">
+        <label>💵 원/달러 환율 (원) <span class="val" id="lbl-fx">1300</span></label>
+        <input type="range" id="fx" min="1000" max="1800" step="10" value="1300" oninput="syncLabels()" />
+      </div>
+      <div class="field">
+        <label>🛢️ 국제유가 ($) <span class="val" id="lbl-oil">75</span></label>
+        <input type="range" id="oil" min="20" max="160" step="1" value="75" oninput="syncLabels()" />
+      </div>
+      <p class="note">환율·유가는 종목마다 다르게 반응합니다(섹터 베타, 아래 표 참고) — 나머지 5개 지표는 전 종목에 동일하게 적용됩니다.</p>
+    </div>
+
+    <div class="panel">
+      <details>
+        <summary>고급 파라미터 (GARCH · 점프-확산 · 상관관계)</summary>
+        <div class="grid2">
+          <div class="field">
+            <label>ω omega <span class="val" id="lbl-omega">0.00001</span></label>
+            <input type="range" id="omega" min="0" max="0.001" step="0.00001" value="0.00001" oninput="syncLabels()" />
+          </div>
+          <div class="field">
+            <label>α alpha <span class="val" id="lbl-alpha">0.10</span></label>
+            <input type="range" id="alpha" min="0" max="0.6" step="0.01" value="0.10" oninput="syncLabels()" />
+          </div>
+          <div class="field">
+            <label>β beta <span class="val" id="lbl-beta">0.85</span></label>
+            <input type="range" id="beta" min="0" max="0.98" step="0.01" value="0.85" oninput="syncLabels()" />
+          </div>
+          <div class="field">
+            <label>ρ 종목 상관계수 <span class="val" id="lbl-corr">0.40</span></label>
+            <input type="range" id="corr" min="0" max="0.95" step="0.05" value="0.40" oninput="syncLabels()" />
+          </div>
+          <div class="field">
+            <label>λ 점프 빈도/년 <span class="val" id="lbl-lambda">2.0</span></label>
+            <input type="range" id="lambda" min="0" max="30" step="0.5" value="2.0" oninput="syncLabels()" />
+          </div>
+          <div class="field">
+            <label>μⱼ 점프 편향 <span class="val" id="lbl-muJ">-0.05</span></label>
+            <input type="range" id="muJ" min="-0.5" max="0.5" step="0.01" value="-0.05" oninput="syncLabels()" />
+          </div>
+          <div class="field">
+            <label>σⱼ 점프 크기 <span class="val" id="lbl-sigmaJ">0.10</span></label>
+            <input type="range" id="sigmaJ" min="0" max="0.8" step="0.01" value="0.10" oninput="syncLabels()" />
+          </div>
+          <div class="field">
+            <label>base μ <span class="val" id="lbl-baseMu">0.05</span></label>
+            <input type="range" id="baseMu" min="-0.3" max="0.3" step="0.01" value="0.05" oninput="syncLabels()" />
+          </div>
+        </div>
+      </details>
+    </div>
+
+    <div class="panel">
+      <h2>종목 · 라운드 설정</h2>
+      <div class="grid2">
+        <div class="field">
+          <label>종목 수</label>
+          <input type="number" id="nStocks" min="1" max="30" value="6" />
+        </div>
+        <div class="field">
+          <label>초기가 (₩)</label>
+          <input type="number" id="startPrice" min="1" step="100" value="10000" />
+        </div>
+        <div class="field">
+          <label>시작 연도</label>
+          <input type="number" id="startYear" value="2021" />
+        </div>
+        <div class="field">
+          <label>라운드 수</label>
+          <input type="number" id="rounds" min="1" max="20" value="5" />
+        </div>
+        <div class="field">
+          <label>라운드당 거래일 수</label>
+          <input type="number" id="stepsPerYear" min="1" max="252" value="252" />
+        </div>
+        <div class="field">
+          <label>틱 사이즈 (₩)</label>
+          <input type="number" id="tickSize" min="1" step="1" value="50" />
+        </div>
+      </div>
+      <div class="field">
+        <label>시드 (재현성)</label>
+        <div style="display:flex; gap:6px;">
+          <input type="number" id="seed" value="42" style="flex:1" />
+          <button class="btn-secondary" style="padding:0 10px; border-radius:6px; border:1px solid var(--border); cursor:pointer;" onclick="randomizeSeed()">🎲</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel actions">
+      <h2>실행</h2>
+      <button class="btn-primary" onclick="runSimulation()">▶ 시뮬레이션 실행</button>
+      <button class="btn-secondary" onclick="resetDefaults()">↺ 기본값으로 초기화</button>
+      <button class="btn-export" onclick="exportJSON()">⭳ JSON 내보내기 (WTS import용)</button>
+      <div class="status" id="status">아직 실행 전입니다. [시뮬레이션 실행]을 눌러주세요.</div>
+    </div>
+  </div>
+
+  <!-- ============ 오른쪽: 차트 + 데이터 테이블 ============ -->
+  <div>
+    <div class="chart-wrap">
+      <canvas id="priceChart"></canvas>
+    </div>
+    <div class="panel" style="margin-top:16px;">
+      <h2>생성된 가격 (stocks.prices 스키마)</h2>
+      <div class="table-wrap">
+        <table id="priceTable"><tbody></tbody></table>
+      </div>
+    </div>
+    <div class="panel" style="margin-top:16px;">
+      <h2>종목별 섹터 베타 (환율·유가 민감도, 시드로부터 자동 생성)</h2>
+      <p class="note" style="color:var(--muted); background:var(--bg); border-color:var(--border);">
+        betaFx·betaOil은 종목 UI가 없어 시드값으로부터 결정적으로 생성됩니다(-1.0~1.0). 같은 시드면 항상 같은 베타가 나옵니다.
+      </p>
+      <div class="table-wrap">
+        <table id="betaTable"><tbody></tbody></table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+'use strict'
+
+// ---------- 프리셋 정의 ----------
+// (7요인: intR/unemp/inf/gdp/sent + fx/oil)
+const PRESETS = {
+  boom:        { intR: 2.0, unemp: 3.0, inf: 2.0, gdp: 4.5, sent: 65, fx: 1280, oil: 70 },
+  stagflation: { intR: 6.0, unemp: 7.5, inf: 9.5, gdp: -2.0, sent: 22, fx: 1500, oil: 130 },
+  fxOil:       { intR: 2.5, unemp: 3.2, inf: 2.0, gdp: 3.5, sent: 62, fx: 1700, oil: 140 },
+}
+const DEFAULT_ADVANCED = { omega: 0.00001, alpha: 0.10, beta: 0.85, corr: 0.40, lambda: 2.0, muJ: -0.05, sigmaJ: 0.10, baseMu: 0.05 }
+
+const el = (id) => document.getElementById(id)
+const ids = ['intR', 'unemp', 'inf', 'gdp', 'sent', 'fx', 'oil', 'omega', 'alpha', 'beta', 'corr', 'lambda', 'muJ', 'sigmaJ', 'baseMu']
+
+function syncLabels() {
+  for (const id of ids) {
+    const v = parseFloat(el(id).value)
+    const lbl = el('lbl-' + id)
+    if (!lbl) continue
+    if (id === 'omega') lbl.textContent = v.toFixed(5)
+    else if (id === 'fx' || id === 'oil') lbl.textContent = v.toFixed(0)
+    else lbl.textContent = v.toFixed(2)
+  }
+}
+
+function applyPreset(name) {
+  if (name === 'blackswan') {
+    el('intR').value = 2.0; el('unemp').value = 3.0; el('inf').value = 2.0
+    el('gdp').value = 3.0; el('sent').value = 50; el('fx').value = 1300; el('oil').value = 75
+    el('lambda').value = 15; el('muJ').value = -0.25; el('sigmaJ').value = 0.4
+    el('alpha').value = 0.25; el('beta').value = 0.70
+  } else {
+    const p = PRESETS[name]
+    el('intR').value = p.intR; el('unemp').value = p.unemp; el('inf').value = p.inf
+    el('gdp').value = p.gdp; el('sent').value = p.sent; el('fx').value = p.fx; el('oil').value = p.oil
+    el('lambda').value = DEFAULT_ADVANCED.lambda; el('muJ').value = DEFAULT_ADVANCED.muJ
+    el('sigmaJ').value = DEFAULT_ADVANCED.sigmaJ
+    el('alpha').value = DEFAULT_ADVANCED.alpha; el('beta').value = DEFAULT_ADVANCED.beta
+  }
+  syncLabels()
+  runSimulation()
+}
+
+function resetDefaults() {
+  el('intR').value = 2.0; el('unemp').value = 3.0; el('inf').value = 2.0
+  el('gdp').value = 3.0; el('sent').value = 50; el('fx').value = 1300; el('oil').value = 75
+  el('omega').value = DEFAULT_ADVANCED.omega; el('alpha').value = DEFAULT_ADVANCED.alpha
+  el('beta').value = DEFAULT_ADVANCED.beta; el('corr').value = DEFAULT_ADVANCED.corr
+  el('lambda').value = DEFAULT_ADVANCED.lambda; el('muJ').value = DEFAULT_ADVANCED.muJ
+  el('sigmaJ').value = DEFAULT_ADVANCED.sigmaJ; el('baseMu').value = DEFAULT_ADVANCED.baseMu
+  el('nStocks').value = 6; el('startPrice').value = 10000
+  el('startYear').value = 2021; el('rounds').value = 5
+  el('stepsPerYear').value = 252; el('tickSize').value = 50
+  el('seed').value = 42
+  syncLabels()
+  runSimulation()
+}
+
+function randomizeSeed() {
+  el('seed').value = Math.floor(Math.random() * 1_000_000_000)
+}
+
+// ---------- 종목별 섹터 베타 (환율·유가 민감도) ----------
+// 종목별 베타를 손으로 입력받는 UI가 없으므로, 시드값으로부터 결정적으로 생성한다.
+// 같은 시드 + 같은 종목 수 → 항상 같은 베타(재현 가능). priceSim.js의 PRNG를 그대로 재사용하되
+// 엔진 본체의 난수열과 겹치지 않도록 시드에 오프셋을 둔다.
+function deriveSectorBetas(seed, n) {
+  const rngFx = new window.PriceSim.PRNG((seed + 911_001) >>> 0)
+  const rngOil = new window.PriceSim.PRNG((seed + 911_002) >>> 0)
+  const round1 = (v) => Math.round(v * 10) / 10
+  return {
+    betaFx: Array.from({ length: n }, () => round1(rngFx.uniform() * 2 - 1)),
+    betaOil: Array.from({ length: n }, () => round1(rngOil.uniform() * 2 - 1)),
+  }
+}
+
+// ---------- 상태 읽기 ----------
+function readConfig() {
+  const nStocks = Math.min(30, Math.max(1, parseInt(el('nStocks').value) || 6))
+  const stockIds = Array.from({ length: nStocks }, (_, i) => `S${String(i + 1).padStart(2, '0')}`)
+  const startYear = parseInt(el('startYear').value) || 2021
+  const rounds = Math.min(20, Math.max(1, parseInt(el('rounds').value) || 5))
+  const years = Array.from({ length: rounds }, (_, i) => String(startYear + i))
+  const seed = parseInt(el('seed').value) || 42
+
+  const macro = {
+    int_r: parseFloat(el('intR').value),
+    unemp: parseFloat(el('unemp').value),
+    inf: parseFloat(el('inf').value),
+    gdp: parseFloat(el('gdp').value),
+    sent: parseFloat(el('sent').value),
+    fx: parseFloat(el('fx').value),
+    oil: parseFloat(el('oil').value),
+  }
+  // 슬라이더는 하나의 거시 시나리오를 나타내며, 전 라운드에 동일하게 적용한다
+  // (원본 Streamlit 프로토타입의 UX와 동일: 사이드바 값을 고정한 채 라운드를 진행).
+  const macroByYear = Object.fromEntries(years.map((y) => [y, macro]))
+  const { betaFx, betaOil } = deriveSectorBetas(seed, nStocks)
+
+  return {
+    stockIds,
+    years,
+    macroByYear,
+    betaFx,
+    betaOil,
+    seed,
+    startPrice: parseInt(el('startPrice').value) || 10000,
+    stepsPerYear: Math.min(252, Math.max(1, parseInt(el('stepsPerYear').value) || 252)),
+    tickSize: parseInt(el('tickSize').value) || 50,
+    baseMu: parseFloat(el('baseMu').value),
+    correlation: parseFloat(el('corr').value),
+    garch: {
+      omega: parseFloat(el('omega').value),
+      alpha: parseFloat(el('alpha').value),
+      beta: parseFloat(el('beta').value),
+    },
+    jump: {
+      lambda: parseFloat(el('lambda').value),
+      mu: parseFloat(el('muJ').value),
+      sigma: parseFloat(el('sigmaJ').value),
+    },
+    thresholds: { unemp: 5.0, inf: 8.0 },
+  }
+}
+
+// ---------- 색상 팔레트 ----------
+function colorFor(i, n) {
+  const hue = Math.round((360 * i) / Math.max(n, 1))
+  return `hsl(${hue}, 68%, 45%)`
+}
+
+// ---------- 실행 ----------
+let lastResult = null
+let chartInstance = null
+
+function runSimulation() {
+  const cfg = readConfig()
+
+  // 분기별(63/126/189/252일) 중간 궤적 수집 — 라운드당 1점이 아니라 4점을 그리기 위한 훅.
+  const quarterly = {}
+  cfg.stockIds.forEach((id) => {
+    quarterly[id] = []
+  })
+  const quarterLabels = []
+  cfg.onQuarter = (year, qIdx, pricesSnapshot) => {
+    quarterLabels.push(`${year} Q${qIdx + 1}`)
+    cfg.stockIds.forEach((id, i) => {
+      quarterly[id].push(Math.round(pricesSnapshot[i]))
+    })
+  }
+
+  let result
+  try {
+    result = window.PriceSim.generatePriceSeries(cfg)
+  } catch (e) {
+    el('status').textContent = '오류: ' + e.message
+    return
+  }
+  lastResult = { config: cfg, prices: result }
+  renderChart(quarterLabels, cfg.stockIds, quarterly)
+  renderTable(cfg.years, cfg.stockIds, result)
+  renderBetaTable(cfg.stockIds, cfg.betaFx, cfg.betaOil)
+  el('status').textContent =
+    `시드 ${cfg.seed} · 종목 ${cfg.stockIds.length}개 · 라운드 ${cfg.years.length}개(${cfg.years[0]}~${cfg.years[cfg.years.length - 1]}) · 라운드당 ${cfg.stepsPerYear}스텝 · 차트는 분기(4점/라운드) 단위`
+}
+
+function renderChart(labels, stockIds, seriesMap) {
+  const ctx = el('priceChart').getContext('2d')
+  const datasets = stockIds.map((id, i) => ({
+    label: id,
+    data: seriesMap[id],
+    borderColor: colorFor(i, stockIds.length),
+    backgroundColor: colorFor(i, stockIds.length),
+    tension: 0.15,
+    pointRadius: 1.5,
+    borderWidth: 1.5,
+  }))
+  if (chartInstance) chartInstance.destroy()
+  chartInstance = new Chart(ctx, {
+    type: 'line',
+    data: { labels: years, datasets },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: { position: 'top', labels: { boxWidth: 12, font: { size: 11 } } },
+        tooltip: { callbacks: { label: (c) => `${c.dataset.label}: ${Number(c.parsed.y).toLocaleString()}원` } },
+      },
+      scales: {
+        y: { ticks: { callback: (v) => Number(v).toLocaleString() } },
+      },
+    },
+  })
+}
+
+function renderTable(years, stockIds, result) {
+  const thead = `<thead><tr><th>종목</th>${years.map((y) => `<th>${y}</th>`).join('')}</tr></thead>`
+  const rows = stockIds
+    .map((id) => `<tr><td>${id}</td>${years.map((y) => `<td>${result[id][y].toLocaleString()}</td>`).join('')}</tr>`)
+    .join('')
+  el('priceTable').innerHTML = thead + `<tbody>${rows}</tbody>`
+}
+
+function renderBetaTable(stockIds, betaFx, betaOil) {
+  const thead = '<thead><tr><th>종목</th><th>betaFx</th><th>betaOil</th></tr></thead>'
+  const rows = stockIds
+    .map((id, i) => `<tr><td>${id}</td><td>${betaFx[i].toFixed(1)}</td><td>${betaOil[i].toFixed(1)}</td></tr>`)
+    .join('')
+  el('betaTable').innerHTML = thead + `<tbody>${rows}</tbody>`
+}
+
+function exportJSON() {
+  if (!lastResult) {
+    alert('먼저 [시뮬레이션 실행]을 눌러주세요.')
+    return
+  }
+  const blob = new Blob([JSON.stringify(lastResult.prices, null, 2)], { type: 'application/json' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `sim_prices_seed${lastResult.config.seed}.json`
+  document.body.appendChild(a)
+  a.click()
+  a.remove()
+  URL.revokeObjectURL(url)
+}
+
+// ---------- 초기 실행 ----------
+syncLabels()
+runSimulation()
+</script>
+</body>
+</html>

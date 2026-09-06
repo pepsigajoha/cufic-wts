@@ -4,7 +4,8 @@
 // 이제 내부는 Supabase RPC 호출이다 — 서버가 유일한 심판이고, 프론트 검증은 UX용일 뿐이다.
 // 낙관적 업데이트는 하지 않는다. 서버가 확정한 뒤 다시 읽어서 반영한다.
 
-import { rpc, errorText } from './supabase'
+import { rpc, invokeFn, errorText } from './supabase'
+import { num } from './format'
 
 /**
  * @param {object} deps
@@ -32,11 +33,39 @@ export function makeActions({ getTeamCode, refetch, notify }) {
       return r
     }
     await refetch()
-    notify?.(side === 'buy' ? '매수 체결됐어요' : '매도 체결됐어요', side === 'buy' ? 'up' : 'down')
+    // 장중 체결가는 주문 순간 서버가 정한 값이라 화면 숫자와 다를 수 있다 — 실제 단가를 알린다.
+    const px = Number(r.price)
+    const at = Number.isFinite(px) && px > 0 ? ` @₩${num(px)}` : ''
+    notify?.((side === 'buy' ? '매수 체결' : '매도 체결') + at, side === 'buy' ? 'up' : 'down')
     return r
   }
 
-  return { placeOrder }
+  /**
+   * 옵션 매수(롱 전용). place_order와 동일한 즉시체결·서버판정 원칙.
+   * @param {number} contractId
+   * @param {number} qty
+   */
+  async function placeOptionOrder(contractId, qty) {
+    const r = await rpc('place_option_order', {
+      p_team_code: getTeamCode(),
+      p_contract_id: contractId,
+      p_quantity: qty,
+    })
+    if (!r.ok) {
+      notify?.(errorText(r.error), 'down')
+      return r
+    }
+    await refetch()
+    notify?.('옵션 매수 체결됐어요', 'up')
+    return r
+  }
+
+  /** 주문 전 미리보기용 실시간 프리미엄 조회. cash/포지션을 바꾸지 않는다. */
+  async function quoteOptionPremium(contractId) {
+    return rpc('quote_option_premium', { p_contract_id: contractId })
+  }
+
+  return { placeOrder, placeOptionOrder, quoteOptionPremium }
 }
 
 /**
@@ -91,6 +120,19 @@ export function makeAdminActions(getSecret) {
         p_display_order: s.display_order ?? 0,
       }),
     deleteStock: (id) => call('admin_delete_stock', { p_id: id }),
+    // 주가 시뮬레이터(엔진 트랙 — source='engine'으로 저장, 브리지 트리거 우회).
+    //   prices: { [stockId]: { [year]: price } }              — 연말 스칼라(표시·미리보기용)
+    //   paths : { [stockId]: number[252] }        + year       — 단일 연도(다음 라운드 모드)
+    //       또는 { [stockId]: { [year]: number[252] } } (year=null) — 다연도 배치(전체 연도 모드)
+    applySimulatedPrices: (prices, paths = null, year = null) =>
+      call('admin_apply_simulated_prices', { p_prices: prices, p_paths: paths, p_year: year }),
+    // 주가 생성기: 새 가격에 맞춰 재무제표·힌트를 함께 반영 (숫자는 src/admin/simContent.js 가 계산)
+    applyGeneratedContent: (financials = [], hints = [], replaceRounds = []) =>
+      call('admin_apply_generated_content', {
+        p_financials: financials,
+        p_hints: hints,
+        p_replace_hint_rounds: replaceRounds,
+      }),
 
     // 콘텐츠(B): 재무제표·시황 편집
     upsertMacro: (m) =>
@@ -143,5 +185,24 @@ export function makeAdminActions(getSecret) {
       call('admin_import_dataset', { p_name: name, p_description: description ?? '', p_payload: payload }),
     loadDataset: (id) => call('admin_load_dataset', { p_id: id }),
     deleteDataset: (id) => call('admin_delete_dataset', { p_id: id }),
+
+    // 주가 생성기의 AI 속보 — Gemini 키는 Edge Function(서버)에만 두고 브라우저엔 안 내려간다.
+    // p_admin_secret은 다른 RPC와 동일하게 call()이 자동으로 붙여준다.
+    generateBreakingNews: (payload) => invokeFn('generate-breaking-news', { ...payload, p_admin_secret: getSecret() }),
+
+    // 파생·헷지 — 옵션 계약 관리
+    upsertOptionsContract: (c) =>
+      call('admin_upsert_options_contract', {
+        p_stock_id: c.stockId,
+        p_option_type: c.optionType,
+        p_strike: c.strike,
+        p_expiry_round: c.expiryRound,
+        p_implied_vol: c.impliedVol,
+        p_risk_free_rate: c.riskFreeRate ?? 0.02,
+      }),
+    deactivateOptionsContract: (id) => call('admin_deactivate_options_contract', { p_id: id }),
+
+    // 행동 텔레메트리 집계 (회전율·HHI·MDD·FOMO 반응시간·투자성향·배지)
+    computeTeamAnalytics: () => call('admin_compute_team_analytics'),
   }
 }

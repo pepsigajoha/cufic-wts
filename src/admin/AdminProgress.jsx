@@ -2,8 +2,6 @@ import { useEffect, useState } from 'react'
 import Modal from '../components/Modal'
 import TimerPill from '../components/RoundTimer'
 import { errorText } from '../supabase'
-import { checkContent } from '../dataCheck'
-import { num } from '../format'
 
 const mmss = (ms) => {
   const s = Math.max(0, Math.round(ms / 1000))
@@ -17,27 +15,35 @@ const mmss = (ms) => {
  * 게임 루프: [연도 넘기기]로 새 가격·순위를 공개하고 → 순위를 확인한 뒤 →
  * [타이머 시작]으로 거래를 연다. 10분이 지나면 거래는 자동으로 닫히고, 관리자가 다시 연도를 넘긴다.
  */
+// 한 연도의 시세 경로 출처를 한 줄 뱃지로. 엔진(수학)·브리지(엑셀)·혼합 구분.
+function SourceBadge({ info }) {
+  if (!info || !info.total) return <span className="src-badge none">시세 경로 없음</span>
+  if (info.engine && !info.bridge)
+    return <span className="src-badge engine">🧮 수학엔진 ({info.engine})</span>
+  if (info.bridge && !info.engine)
+    return <span className="src-badge bridge">📊 엑셀·브리지 ({info.bridge})</span>
+  return (
+    <span className="src-badge mixed">
+      ⚠ 혼합 — 엔진 {info.engine} · 브리지 {info.bridge}
+    </span>
+  )
+}
+
 export default function AdminProgress({
   actions,
   game,
   teams,
   gamePin,
-  stocks = [],
-  hints = [],
-  financials = [],
-  macro = [],
   broadcasts = [],
+  pathSources = {},
   refresh,
   notify,
 }) {
-  const [confirm, setConfirm] = useState(null) // 'advance' | 'end' | 'reset'
-  const [resetText, setResetText] = useState('')
+  const [confirm, setConfirm] = useState(null) // 'advance' | 'end' | 'switchDs'
   const [busy, setBusy] = useState(false)
   const [pinBusy, setPinBusy] = useState(false)
   const [nowTs, setNowTs] = useState(() => Date.now())
   const [bcText, setBcText] = useState('') // 속보 입력
-  const [issues, setIssues] = useState(null) // [데이터 점검] 결과
-  const [cfg, setCfg] = useState(null) // 게임 설정 편집 상태
   const [dsList, setDsList] = useState([]) // 저장된 데이터셋 목록 (시작 전 선택용)
   const [dsTarget, setDsTarget] = useState(null) // 바꾸려는 데이터셋 {id, name}
 
@@ -82,7 +88,6 @@ export default function AdminProgress({
     const r = await fn()
     setBusy(false)
     setConfirm(null)
-    setResetText('')
     if (!r.ok) {
       notify(errorText(r.error), 'down')
       return
@@ -201,51 +206,6 @@ export default function AdminProgress({
     notify(`'${t.name}' 데이터셋으로 세팅했어요`, 'gold')
     const lr = await actions.listDatasets()
     if (lr.ok) setDsList(lr.datasets ?? [])
-    await refresh()
-  }
-
-  const runCheck = () => setIssues(checkContent(game, stocks, hints, financials, macro))
-
-  // ── 게임 설정 편집 (시작 전에만)
-  const startCfg = () =>
-    setCfg({
-      totalRounds: game.total_rounds,
-      years: Object.fromEntries(
-        Array.from({ length: game.total_rounds }, (_, i) => [
-          i + 1,
-          game.round_year_map?.[String(i + 1)] ?? '',
-        ]),
-      ),
-      finalYear: game.final_year ?? '',
-      defaultSeed: game.default_seed ?? 100000000,
-      durationMinutes: Math.round((game.round_duration_seconds ?? 600) / 60),
-      joinMode: game.join_mode ?? 'code',
-    })
-  const setCfgYear = (r, v) => setCfg((c) => ({ ...c, years: { ...c.years, [r]: v } }))
-  const setTotal = (n) => {
-    const t = Math.max(1, Math.min(20, Number(n) || 1))
-    setCfg((c) => {
-      const years = {}
-      for (let r = 1; r <= t; r++) years[r] = c.years[r] ?? ''
-      return { ...c, totalRounds: t, years }
-    })
-  }
-  const saveCfg = async () => {
-    const roundYearMap = {}
-    for (let r = 1; r <= cfg.totalRounds; r++) roundYearMap[r] = Number(cfg.years[r])
-    setBusy(true)
-    const res = await actions.updateGameConfig({
-      totalRounds: cfg.totalRounds,
-      roundYearMap,
-      finalYear: Number(cfg.finalYear),
-      defaultSeed: Number(cfg.defaultSeed),
-      durationMinutes: Number(cfg.durationMinutes),
-      joinMode: cfg.joinMode,
-    })
-    setBusy(false)
-    if (!res.ok) return notify(errorText(res.error), 'down')
-    setCfg(null)
-    notify('게임 설정을 저장했어요', 'gold')
     await refresh()
   }
 
@@ -381,6 +341,11 @@ export default function AdminProgress({
             </span>
           </div>
 
+          <div className="src-row">
+            <span className="src-label">이번 라운드 시세 생성 방식</span>
+            <SourceBadge info={pathSources[Number(game.round_year_map?.[String(cur)])]} />
+          </div>
+
           {showRoundBtn && (
             <div className="arow">
               {!isLast ? (
@@ -402,6 +367,30 @@ export default function AdminProgress({
               <b>타이머를 시작</b>하면 거래가 열립니다. 되돌릴 수 없습니다.
             </p>
           )}
+        </section>
+      )}
+
+      {/* 라운드별 시세 생성 방식 — 한눈에 */}
+      {Object.keys(game.round_year_map ?? {}).length > 0 && (
+        <section className="acard">
+          <span className="acap">라운드별 시세 생성 방식</span>
+          <p className="anote">
+            📊 엑셀·브리지 = 연말가를 고정하고 그 사이를 브라운 브리지로 보간 · 🧮 수학엔진 = 7팩터/GARCH
+            엔진이 경로와 연말가를 함께 산출. [주가 생성기] 탭에서 다시 만들 수 있어요.
+          </p>
+          <div className="src-grid">
+            {Object.entries(game.round_year_map)
+              .map(([r, y]) => [Number(r), Number(y)])
+              .sort((a, b) => a[0] - b[0])
+              .map(([r, y]) => (
+                <div key={r} className="src-cell">
+                  <span className="src-r">
+                    R{r} · {y}
+                  </span>
+                  <SourceBadge info={pathSources[y]} />
+                </div>
+              ))}
+          </div>
         </section>
       )}
 
@@ -501,139 +490,7 @@ export default function AdminProgress({
         </section>
       )}
 
-      {/* ── 여기부터 대회 준비 영역 */}
-      <div className="group-sep">
-        <span>대회 준비</span>
-      </div>
-
-      {/* 게임 설정 — 시작 전에만 */}
-      {notStarted && (
-        <section className="acard">
-          <span className="acap">게임 설정 (시작 전에만)</span>
-          {!cfg ? (
-            <>
-              <p className="anote">
-                라운드 {game.total_rounds}개 · 연도 {Object.values(game.round_year_map ?? {}).join('·')} ·
-                최종 {game.final_year} · 기본 시드 ₩{num(game.default_seed)} · 타이머{' '}
-                {Math.round((game.round_duration_seconds ?? 600) / 60)}분 · 입장{' '}
-                {game.join_mode === 'open' ? '자율(닉네임)' : '코드'}
-              </p>
-              <button className="text-btn" onClick={startCfg}>
-                설정 편집
-              </button>
-            </>
-          ) : (
-            <div className="cfg-form">
-              <div className="frow col">
-                <label>라운드 수</label>
-                <input
-                  className="num"
-                  type="number"
-                  min="1"
-                  max="20"
-                  value={cfg.totalRounds}
-                  onChange={(e) => setTotal(e.target.value)}
-                />
-              </div>
-              <div className="frow col">
-                <label>라운드별 연도</label>
-                <div className="cfg-years">
-                  {Array.from({ length: cfg.totalRounds }, (_, i) => i + 1).map((r) => (
-                    <div key={r} className="pcell">
-                      <span>R{r}</span>
-                      <input
-                        className="num"
-                        type="number"
-                        value={cfg.years[r]}
-                        onChange={(e) => setCfgYear(r, e.target.value)}
-                      />
-                    </div>
-                  ))}
-                </div>
-              </div>
-              <div className="frow two">
-                <div className="frow col">
-                  <label>최종 정산 연도</label>
-                  <input
-                    className="num"
-                    type="number"
-                    value={cfg.finalYear}
-                    onChange={(e) => setCfg({ ...cfg, finalYear: e.target.value })}
-                  />
-                </div>
-                <div className="frow col">
-                  <label>기본 시드머니</label>
-                  <input
-                    className="num"
-                    type="number"
-                    value={cfg.defaultSeed}
-                    onChange={(e) => setCfg({ ...cfg, defaultSeed: e.target.value })}
-                  />
-                </div>
-                <div className="frow col">
-                  <label>타이머(분)</label>
-                  <input
-                    className="num"
-                    type="number"
-                    value={cfg.durationMinutes}
-                    onChange={(e) => setCfg({ ...cfg, durationMinutes: e.target.value })}
-                  />
-                </div>
-              </div>
-              <div className="frow col">
-                <label>입장 방식</label>
-                <div className="tabs mini">
-                  <button
-                    className={cfg.joinMode === 'code' ? 'on' : ''}
-                    onClick={() => setCfg({ ...cfg, joinMode: 'code' })}
-                  >
-                    코드 (강사가 조·코드 배부)
-                  </button>
-                  <button
-                    className={cfg.joinMode === 'open' ? 'on' : ''}
-                    onClick={() => setCfg({ ...cfg, joinMode: 'open' })}
-                  >
-                    자율 (학생이 닉네임으로 입장)
-                  </button>
-                </div>
-                <span className="anote">
-                  자율: 학생이 닉네임을 정하면 그 자리에서 조가 생기고 재접속용 PIN이 발급돼요. 새 입장은 시작 전에만.
-                </span>
-              </div>
-              <div className="arow">
-                <button className="text-btn" onClick={() => setCfg(null)}>
-                  취소
-                </button>
-                <button className="act-btn prime" disabled={busy} onClick={saveCfg}>
-                  설정 저장
-                </button>
-              </div>
-            </div>
-          )}
-        </section>
-      )}
-
-      {/* 데이터 점검 */}
-      <section className="acard">
-        <span className="acap">데이터 점검</span>
-        <p className="anote">
-          힌트 호재/악재↔실제 등락 · 힌트 누락 · 가격 공백 등 콘텐츠 정합성을 검사해요.
-        </p>
-        <button className="act-btn neutral" disabled={busy} onClick={runCheck}>
-          데이터 점검 실행
-        </button>
-      </section>
-
-      <details className="acard danger reset-card">
-        <summary className="acap">게임 리셋 (펼쳐서 실행)</summary>
-        <p className="anote">
-          모든 조의 예수금이 초기 자본으로 돌아가고 보유·체결내역·힌트 지급이 전부 사라집니다. 종목과
-          힌트 등 콘텐츠는 남습니다.
-        </p>
-        <button className="text-btn danger" disabled={busy} onClick={() => setConfirm('reset')}>
-          게임 리셋
-        </button>
-      </details>
+      {/* 게임 설정 · 데이터 점검 · 게임 리셋 → [시스템] 탭으로 이동 (AdminSystem.jsx) */}
 
       {/* 라운드 진행 확인 */}
       <Modal open={confirm === 'advance'} onClose={() => setConfirm(null)} title="확인">
@@ -689,37 +546,6 @@ export default function AdminProgress({
         </div>
       </Modal>
 
-      {/* 리셋 — 이중 확인 */}
-      <Modal open={confirm === 'reset'} onClose={() => setConfirm(null)} title="게임 리셋">
-        <div className="confirm">
-          <p className="big">정말 초기화할까요?</p>
-          <p className="ask">
-            모든 조의 거래가 사라집니다. 되돌릴 수 없습니다.
-            <br />
-            확인을 위해 <b>RESET</b>을 입력하세요.
-          </p>
-          <input
-            className="reset-input num"
-            value={resetText}
-            onChange={(e) => setResetText(e.target.value)}
-            placeholder="RESET"
-            autoFocus
-          />
-        </div>
-        <div className="mfoot">
-          <button className="cancel" onClick={() => setConfirm(null)}>
-            취소
-          </button>
-          <button
-            className="act-btn danger"
-            disabled={busy || resetText !== 'RESET'}
-            onClick={() => run(actions.resetGame, '게임이 초기화되었습니다')}
-          >
-            초기화
-          </button>
-        </div>
-      </Modal>
-
       {/* 데이터셋 바꾸기 확인 */}
       <Modal
         open={confirm === 'switchDs'}
@@ -749,29 +575,6 @@ export default function AdminProgress({
           </button>
           <button className="act-btn prime" disabled={busy} onClick={doSwitchDs}>
             {busy ? '세팅 중…' : '이 데이터셋으로'}
-          </button>
-        </div>
-      </Modal>
-
-      {/* 데이터 점검 결과 */}
-      <Modal open={issues !== null} onClose={() => setIssues(null)} title="데이터 점검 결과" wide>
-        {issues && issues.length === 0 ? (
-          <p className="aok">문제를 찾지 못했어요. 데이터가 정합적이에요 ✅</p>
-        ) : (
-          <ul className="issue-list">
-            {(issues ?? []).map((it, i) => (
-              <li key={i} className={'issue ' + it.level}>
-                <span className="ilv">
-                  {it.level === 'error' ? '오류' : it.level === 'warn' ? '경고' : '참고'}
-                </span>
-                {it.msg}
-              </li>
-            ))}
-          </ul>
-        )}
-        <div className="mfoot">
-          <button className="act-btn neutral" onClick={() => setIssues(null)}>
-            닫기
           </button>
         </div>
       </Modal>

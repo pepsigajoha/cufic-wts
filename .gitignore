@@ -19,3 +19,9 @@ supabase/.temp
 
 # Claude Code 로컬 설정 (개인 개발환경 — 공유 안 함)
 .claude/settings.local.json
+
+# Python 데이터 생성기 (sim_sandbox/*.py) 산출물 — 절대 커밋 금지
+__pycache__/
+*.pyc
+venv/
+.venv/

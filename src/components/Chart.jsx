@@ -1,22 +1,10 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { num, pct, dirOf, arrowOf } from '../format'
-import { candleSeries, movingAverage, TIMEFRAMES } from '../chart'
+import { downsample, priceAxis, roundStepIndex, STEPS_PER_YEAR, TIMEFRAMES } from '../chart'
 import { useSize } from '../useSize'
 import DrawLayer from './DrawLayer'
 
 const PAD = { t: 18, r: 66, b: 18, l: 14 }
-
-// y축 눈금을 깔끔한 라운드 숫자로 (1,511 대신 1,500·2,000 …). 자릿수에 맞춰 간격을 고른다.
-const niceTicks = (min, max, count = 5) => {
-  const range = max - min || 1
-  const raw = range / (count - 1)
-  const mag = Math.pow(10, Math.floor(Math.log10(raw)))
-  const n = raw / mag
-  const step = (n < 1.5 ? 1 : n < 3 ? 2 : n < 7 ? 5 : 10) * mag
-  const out = []
-  for (let v = Math.ceil(min / step) * step; v <= max + step * 0.001; v += step) out.push(v)
-  return out
-}
 
 // 그림판 도구: 커서 · 펜 · 추세선 · 지우개
 const TOOLS = [
@@ -54,43 +42,130 @@ const TOOLS = [
   },
 ]
 
-export default function Chart({ stock, onOpenFinancial, onOpenMarket, strokes, onStrokesChange }) {
+export default function Chart({
+  stock,
+  onOpenFinancial,
+  onOpenMarket,
+  strokes,
+  onStrokesChange,
+  tradingOpen,
+  round,
+  roundYearMap,
+  timerState,
+  game,
+}) {
   const [tool, setTool] = useState('cursor')
-  const [tf, setTf] = useState('W')
+  const [tfKey, setTfKey] = useState('W') // 초기 마운트 기본 주기 = 주봉
   const [plotRef, { w, h }] = useSize()
 
   const dir = dirOf(stock.chg)
+  const tf = TIMEFRAMES.find((t) => t.key === tfKey) ?? TIMEFRAMES[0]
 
-  // 종목·시세·봉주기가 바뀔 때만 다시 생성.
-  // 지난 라운드 종가(= 현재가 - 등락폭)에서 출발해야 차트가 실제 등락과 같은 방향을 가리킨다.
-  const { candles, ma } = useMemo(() => {
-    const list = candleSeries(stock.code, stock.price, stock.price - stock.delta, tf)
-    return { candles: list, ma: movingAverage(list, 5) }
-  }, [stock.code, stock.price, stock.delta, tf])
+  // 거래 시간 동안만 빠르게 리렌더해서 "지금 몇 번째 날까지 드러났는지"(reveal)가 매끄럽게
+  // 흐르게 한다. roundStepIndex(game, Date.now())가 진행률을 계산하므로 새 Date.now()만 있으면 된다.
+  const [, forceTick] = useState(0)
+  useEffect(() => {
+    if (!tradingOpen) return
+    const id = setInterval(() => forceTick((n) => n + 1), 150)
+    return () => clearInterval(id)
+  }, [tradingOpen])
+  const nowMs = Date.now()
 
-  // 데이터 범위에서 y 스케일을 잡는다 (좌표 하드코딩 없음)
+  // 서버가 저장한 실제 시뮬레이션 경로를 tf 해상도로 그린다(가짜 보간 없음).
+  //  - 과거 연도 : 최근 tf.window개만, 각 경로를 tf.count개로 다운샘플해 이어 붙인다.
+  //  - 지금 연도 : 경로를 tf.count개로 다운샘플(livePath). 아래 reveal이 진행률만큼만 그린다.
+  //  - 경로 없는 연도 : 연말 스칼라 한 점(옛 데이터 하위호환).
+  const { fullPath, pastPath, livePath } = useMemo(() => {
+    const curYear = roundYearMap?.[String(round)] != null ? Number(roundYearMap[String(round)]) : null
+    const allCompleted = Object.entries(roundYearMap || {})
+      .map(([r, y]) => [Number(r), Number(y)])
+      .filter(([r, y]) => r >= 1 && r <= (round ?? 0) && y !== curYear)
+      .sort((a, b) => a[0] - b[0])
+      .map(([, y]) => y)
+    // 지금 연도 1개는 아래에서 따로 그리므로 과거는 window-1개만 (slice(-0)이 전체를 반환하는 함정 회피)
+    const keepPast = Math.max(0, tf.window - 1)
+    const completed = keepPast === 0 ? [] : allCompleted.slice(-keepPast)
+
+    const byYear = stock.pricePathsByYear ?? {}
+    const past = []
+    for (const y of completed) {
+      const p = byYear[y]
+      if (Array.isArray(p) && p.length) past.push(...downsample(p, tf.count))
+      else {
+        const scalar = Number(stock.prices?.[String(y)] ?? 0)
+        if (scalar > 0) past.push(scalar)
+      }
+    }
+
+    const rawLive = curYear != null ? byYear[curYear] : null
+    let live
+    if (Array.isArray(rawLive) && rawLive.length) live = downsample(rawLive, tf.count)
+    else {
+      const scalar = Number(stock.prices?.[String(curYear)] ?? stock.price ?? 0)
+      live = scalar > 0 ? [scalar] : []
+    }
+
+    const full = [...past, ...live]
+    if (full.length === 0) return { fullPath: [stock.price > 0 ? stock.price : 1], pastPath: [], livePath: [] }
+    return { fullPath: full, pastPath: past, livePath: live }
+  }, [stock.prices, stock.price, stock.pricePathsByYear, round, roundYearMap, tf.count, tf.window])
+
+  // reveal — 지금 라운드 경로를 진행률만큼만, tf.count 단위로 끊어 드러낸다.
+  //  - live   : 진행률 × tf.count 개까지. 틱(252)은 자주·촘촘, 년(12)은 드물게·크게 전진.
+  //  - closed : 경로 전체(마지막 점 = 연말 확정가).
+  //  - waiting: 아직 안 그린다 — 완성된 그래프가 미리 보이는 스포일러 방지.
+  const stepIdx = roundStepIndex(game, nowMs) // 0..251
+  const revealFrac =
+    timerState === 'closed' ? 1 : timerState === 'live' ? (stepIdx + 1) / STEPS_PER_YEAR : 0
+  const liveRevealCount =
+    revealFrac <= 0 ? 0 : Math.min(livePath.length, Math.max(1, Math.ceil(revealFrac * livePath.length)))
+  const revealedLive = livePath.slice(0, liveRevealCount)
+  const assembled = [...pastPath, ...revealedLive]
+  const revealedPath = assembled.length ? assembled : [stock.price > 0 ? stock.price : 1]
+  const tipIdx = Math.max(0, revealedPath.length - 1)
+  const livePrice = revealedPath[tipIdx] ?? stock.price
+
+  // 각 점의 y값 = 그 점의 실제 경로 값(잔떨림·재계산 없음).
+  const liveSegmentY = (i) => revealedPath[i]
+
+  // y축 도메인(min/max/ticks)은 priceAxis(순수 함수, chart.js)가 전체 경로 기준으로 고정
+  // 계산한다 — 그래야 점이 드러날 때마다 축이 다시 스케일되며 튀지 않는다.
+  // x축은 반대로 "지금까지 드러난 만큼"을 기준으로 매번 다시 잡는다 — 그래야 지금 드러난
+  // 선이 항상 플롯 영역을 꽉 채운다(고정폭 기준으로 잡으면 라운드 초반엔 선이 왼쪽 일부에만
+  // 그려지고 오른쪽에 빈 공간이 크게 남는다). 슬롯 중앙(+0.5)이 아니라 양 끝(0·n-1)이
+  // 정확히 플롯 좌우 끝에 닿게 잡아야 실시간 점이 오른쪽 끝과 어긋나지 않는다.
   const geom = useMemo(() => {
-    const lo = Math.min(...candles.map((c) => c.low))
-    const hi = Math.max(...candles.map((c) => c.high))
-    const pad = (hi - lo) * 0.08 || hi * 0.02
-    const min = lo - pad
-    const max = hi + pad
-
+    const { min, max, ticks } = priceAxis(fullPath)
     const plotW = Math.max(1, w - PAD.l - PAD.r)
     const plotH = Math.max(1, h - PAD.t - PAD.b)
-    const step = plotW / candles.length
+    const n = Math.max(1, revealedPath.length)
+    const step = n > 1 ? plotW / (n - 1) : 0
 
     return {
-      x: (i) => PAD.l + step * (i + 0.5),
+      x: (i) => (n > 1 ? PAD.l + step * i : PAD.l + plotW / 2),
       y: (v) => PAD.t + (1 - (v - min) / (max - min)) * plotH,
-      bodyW: Math.max(3, step * 0.58),
-      ticks: niceTicks(min, max, 5),
+      ticks,
     }
-  }, [candles, w, h])
+  }, [fullPath, revealedPath.length, w, h])
 
-  const { x, y, bodyW, ticks } = geom
+  const { x, y, ticks } = geom
   const ready = w > 0 && h > 0
-  const maPoints = ma.map((v, i) => `${x(i).toFixed(1)},${y(v).toFixed(1)}`).join(' ')
+  // 마지막 점은 항상 livePrice(잔떨림 포함)로 그린다 — 그래야 가격선의 끝·그라디언트
+  // 음영의 우상단 모서리·펄스 점·기준선이 전부 정확히 같은(반올림까지 동일한) 좌표를
+  // 공유한다. 1자리로 반올림해 문자열(points)과 숫자(cx/cy) 표현이 부동소수점 오차로
+  // 미세하게 어긋나는 일이 없게 한다(어긋남/찢김 방지).
+  const tipX = Number(x(tipIdx).toFixed(1))
+  const tipY = Number(y(livePrice).toFixed(1))
+  const pointY = (i) => Number(y(liveSegmentY(i)).toFixed(1))
+  const pricePoints = revealedPath.map((v, i) => `${x(i).toFixed(1)},${pointY(i)}`).join(' ')
+  // 가격선 아래로 은은한 그라디언트 음영 — 추세를 시각적으로 눈에 더 띄게 한다.
+  const priceFillPath = useMemo(() => {
+    if (!ready || revealedPath.length < 2) return ''
+    const baseY = (h - PAD.b).toFixed(1)
+    const top = revealedPath.map((v, i) => `${x(i).toFixed(1)},${pointY(i)}`)
+    return `M${top[0]} L${top.join(' L')} L${x(revealedPath.length - 1).toFixed(1)},${baseY} L${x(0).toFixed(1)},${baseY} Z`
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [revealedPath, tipY, x, y, h, ready])
 
   return (
     <main className="col chart">
@@ -102,6 +177,9 @@ export default function Chart({ stock, onOpenFinancial, onOpenMarket, strokes, o
         ) : (
           <>
             <span className={'now num ' + dir}>{num(stock.price)}</span>
+            {/* 순수 장식용 — 숫자·색은 항상 실제 공식가 그대로다. 거래 중임을 알리는
+                점일 뿐, 어떤 값도 바꾸지 않는다. */}
+            {tradingOpen && <span className="live-dot" aria-hidden="true" />}
             <span className={'delta num ' + dir}>
               {arrowOf(stock.chg)} {num(Math.abs(stock.delta))}
               <br />
@@ -147,7 +225,7 @@ export default function Chart({ stock, onOpenFinancial, onOpenMarket, strokes, o
 
         <div className="tf">
           {TIMEFRAMES.map((t) => (
-            <button key={t.key} className={tf === t.key ? 'on' : ''} onClick={() => setTf(t.key)}>
+            <button key={t.key} className={tfKey === t.key ? 'on' : ''} onClick={() => setTfKey(t.key)}>
               {t.label}
             </button>
           ))}
@@ -159,6 +237,12 @@ export default function Chart({ stock, onOpenFinancial, onOpenMarket, strokes, o
         {stock.halted && <div className="plot-empty">거래가 정지된 종목이라 차트가 없어요</div>}
         {ready && !stock.halted && (
           <svg viewBox={`0 0 ${w} ${h}`}>
+            <defs>
+              <linearGradient id="price-fill" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" className="price-fill-stop-start" />
+                <stop offset="100%" className="price-fill-stop-end" />
+              </linearGradient>
+            </defs>
             <g className="grid">
               {ticks.map((v, i) => (
                 <line key={i} x1={PAD.l} y1={y(v)} x2={w - PAD.r} y2={y(v)} />
@@ -172,27 +256,14 @@ export default function Chart({ stock, onOpenFinancial, onOpenMarket, strokes, o
               ))}
             </g>
 
-            <polyline className="ma" points={maPoints} />
+            {priceFillPath && <path className="price-fill" d={priceFillPath} />}
+            <polyline className="price-line" points={pricePoints} />
 
-            {candles.map((c, i) => {
-              const cx = x(i)
-              const top = y(Math.max(c.open, c.close))
-              const bottom = y(Math.min(c.open, c.close))
-              return (
-                <g key={i} className={'candle ' + (c.up ? 'up' : 'down')}>
-                  <line x1={cx} y1={y(c.high)} x2={cx} y2={y(c.low)} />
-                  <rect x={cx - bodyW / 2} y={top} width={bodyW} height={Math.max(1, bottom - top)} />
-                </g>
-              )
-            })}
-
-            <line
-              className={'nowline ' + dir}
-              x1={PAD.l}
-              y1={y(stock.price)}
-              x2={w - PAD.r}
-              y2={y(stock.price)}
-            />
+            {/* 지금 가격 수준을 가로질러 보여주는 기준선 + 그 위의 펄스 점(실시간 틱).
+                가격선의 끝점도 y(livePrice)로 그리므로(위 tipY) 이 셋은 항상 정확히 같은
+                y좌표를 공유한다 — 점만 따로 떠 보이는 어긋남이 생기지 않는다. */}
+            <line className={'nowline ' + dir} x1={PAD.l} y1={tipY} x2={w - PAD.r} y2={tipY} />
+            {tradingOpen && <circle className={'nowline-pulse ' + dir} cx={tipX} cy={tipY} r={3.5} />}
           </svg>
         )}
 

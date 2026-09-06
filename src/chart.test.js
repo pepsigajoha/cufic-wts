@@ -1,89 +1,137 @@
 import { describe, it, expect } from 'vitest'
-import { candleSeries, movingAverage, TIMEFRAMES } from './chart'
+import { downsample, priceAxis, roundStepIndex, STEPS_PER_YEAR, TIMEFRAMES } from './chart'
 
-const first = (s) => s[0]
-const last = (s) => s[s.length - 1]
-
-describe('candleSeries — 차트 방향 [회귀]', () => {
-  // 버그: 처음엔 종목코드만 시드로 쓰고 현재가에 배율만 맞췄다. 그래서 삼성전자가
-  // 29% 하락한 2022년에도 차트가 강한 우상향으로 그려졌다. 학생이 차트를 보고
-  // 정반대로 판단할 수 있어 교육용으로 치명적이었다.
-  // 고친 뒤로는 지난 라운드 종가 → 이번 종가를 보간한 추세를 그린다.
-
-  it('하락한 해에는 차트가 내려간다', () => {
-    const s = candleSeries('005930', 55_300, 78_300, 'W') // -29%
-    expect(last(s).close).toBeLessThan(first(s).open)
+describe('roundStepIndex — 라운드 진행률 → 스텝(0..251) [SQL private.round_step_idx와 동일 공식]', () => {
+  const T0 = Date.parse('2026-08-30T00:00:00Z')
+  const g = (startMs, endMs, extra = {}) => ({
+    round_start_at: startMs == null ? null : new Date(startMs).toISOString(),
+    round_ends_at: endMs == null ? null : new Date(endMs).toISOString(),
+    ...extra,
   })
 
-  it('상승한 해에는 차트가 올라간다', () => {
-    const s = candleSeries('000660', 141_500, 75_000, 'W') // +89%
-    expect(last(s).close).toBeGreaterThan(first(s).open)
+  it('시작 직후엔 0', () => {
+    expect(roundStepIndex(g(T0, T0 + 600_000), T0)).toBe(0)
   })
 
-  it('큰 폭 하락도 방향이 뒤집히지 않는다', () => {
-    const s = candleSeries('035420', 177_500, 376_000, 'W') // -53%
-    expect(last(s).close).toBeLessThan(first(s).open)
+  it('정확히 절반 지나면 126 (0.5 × 252)', () => {
+    expect(roundStepIndex(g(T0, T0 + 600_000), T0 + 300_000)).toBe(126)
   })
 
-  it('모든 봉 주기에서 방향이 일치한다', () => {
-    for (const tf of TIMEFRAMES) {
-      const down = candleSeries('005930', 55_300, 78_300, tf.key)
-      expect(last(down).close, `${tf.label} 하락`).toBeLessThan(first(down).open)
-      const up = candleSeries('000660', 141_500, 75_000, tf.key)
-      expect(last(up).close, `${tf.label} 상승`).toBeGreaterThan(first(up).open)
-    }
+  it('마감 시각/그 이후엔 마지막 스텝(251)로 클램프', () => {
+    expect(roundStepIndex(g(T0, T0 + 600_000), T0 + 600_000)).toBe(251)
+    expect(roundStepIndex(g(T0, T0 + 600_000), T0 + 999_000)).toBe(251)
   })
 
-  it('마지막 봉은 정확히 현재가로 닫힌다 — 헤더 숫자와 어긋나면 안 된다', () => {
-    for (const tf of TIMEFRAMES) {
-      expect(last(candleSeries('005930', 74_200, 78_500, tf.key)).close).toBe(74_200)
-    }
+  it('시작 전(now < start)이면 0으로 클램프', () => {
+    expect(roundStepIndex(g(T0, T0 + 600_000), T0 - 5_000)).toBe(0)
   })
 
-  it('첫 봉은 지난 라운드 종가에서 출발한다', () => {
-    expect(first(candleSeries('005930', 74_200, 78_500, 'W')).open).toBe(78_500)
+  it('round_start_at이 없으면 251 (연말가 = current_price와 동일)', () => {
+    expect(roundStepIndex(g(null, T0 + 600_000), T0 + 300_000)).toBe(251)
   })
 
-  it('같은 종목·주기는 항상 같은 차트다 (결정론적)', () => {
-    const a = candleSeries('005930', 74_200, 78_500, 'W')
-    const b = candleSeries('005930', 74_200, 78_500, 'W')
-    expect(a).toEqual(b)
+  it('is_locked면 진행 중이라도 251', () => {
+    expect(roundStepIndex(g(T0, T0 + 600_000, { is_locked: true }), T0 + 60_000)).toBe(251)
   })
 
-  it('종목이 다르면 차트도 다르다', () => {
-    const a = candleSeries('005930', 74_200, 78_500, 'W')
-    const b = candleSeries('000660', 74_200, 78_500, 'W')
-    expect(a).not.toEqual(b)
+  it('날짜가 깨졌거나 span<=0이어도 죽지 않고 251', () => {
+    expect(roundStepIndex({ round_start_at: 'nope', round_ends_at: 'nan' }, T0)).toBe(251)
+    expect(roundStepIndex(g(T0 + 600_000, T0), T0 + 60_000)).toBe(251)
+    expect(roundStepIndex(null, T0)).toBe(251)
+    expect(roundStepIndex({}, T0)).toBe(251)
   })
 
-  it('지난 종가가 없으면(신규 상장) 현재가에서 시작해 터지지 않는다', () => {
-    const s = candleSeries('373220', 440_000, 0, 'W')
-    expect(s).toHaveLength(TIMEFRAMES.find((t) => t.key === 'W').count)
-    expect(s.every((c) => Number.isFinite(c.close) && c.close > 0)).toBe(true)
-  })
-
-  it('고가·저가가 몸통을 감싼다', () => {
-    for (const c of candleSeries('005930', 74_200, 55_300, 'W')) {
-      expect(c.high).toBeGreaterThanOrEqual(Math.max(c.open, c.close))
-      expect(c.low).toBeLessThanOrEqual(Math.min(c.open, c.close))
-    }
-  })
-
-  it('up 플래그가 종가·시가 관계와 맞는다', () => {
-    for (const c of candleSeries('005930', 74_200, 55_300, 'D')) {
-      expect(c.up).toBe(c.close >= c.open)
+  it('항상 0..STEPS_PER_YEAR-1 범위', () => {
+    for (const dt of [-1e6, 0, 1, 150_000, 599_999, 600_000, 1e7]) {
+      const s = roundStepIndex(g(T0, T0 + 600_000), T0 + dt)
+      expect(s).toBeGreaterThanOrEqual(0)
+      expect(s).toBeLessThanOrEqual(STEPS_PER_YEAR - 1)
     }
   })
 })
 
-describe('movingAverage', () => {
-  it('구간이 채워지기 전에는 있는 것만 평균낸다', () => {
-    const s = [10, 20, 30, 40].map((close) => ({ close }))
-    expect(movingAverage(s, 3)).toEqual([10, 15, 20, 30])
+describe('downsample — 과거 라운드 경로를 n개 대표점으로', () => {
+  it('첫 점과 마지막 점을 항상 포함한다', () => {
+    const out = downsample([10, 20, 30, 40, 50], 3)
+    expect(out[0]).toBe(10)
+    expect(out[out.length - 1]).toBe(50)
   })
 
-  it('길이가 원본과 같다', () => {
-    const s = candleSeries('005930', 74_200, 78_500, 'W')
-    expect(movingAverage(s, 5)).toHaveLength(s.length)
+  it('요청 개수만큼 낸다 (경로가 그보다 길 때)', () => {
+    expect(downsample(Array.from({ length: 252 }, (_, i) => i), 12)).toHaveLength(12)
+  })
+
+  it('n이 경로 길이 이상이면 원본을 그대로(사본으로) 돌려준다', () => {
+    const src = [1, 2, 3]
+    const out = downsample(src, 10)
+    expect(out).toEqual([1, 2, 3])
+    expect(out).not.toBe(src)
+  })
+
+  it('n=1이면 마지막 값만', () => {
+    expect(downsample([1, 2, 3, 9], 1)).toEqual([9])
+  })
+
+  it('빈/비배열 입력이면 빈 배열', () => {
+    expect(downsample([], 5)).toEqual([])
+    expect(downsample(null, 5)).toEqual([])
+  })
+
+  it('균등 간격으로 뽑는다', () => {
+    expect(downsample([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10], 3)).toEqual([0, 5, 10])
+  })
+})
+
+describe('priceAxis — y축 좌표 스케일링 [순수 함수]', () => {
+  it('일반적인 경로에서 min < max 이고 여백을 둔다', () => {
+    const { min, max } = priceAxis([9_500, 11_000, 10_200, 10_800])
+    expect(min).toBeLessThan(9_500)
+    expect(max).toBeGreaterThan(11_000)
+  })
+
+  it('변동성 0(전부 동일값)이어도 min < max — 0으로 나누지 않는다', () => {
+    const { min, max } = priceAxis(Array(5).fill(10_000))
+    expect(max).toBeGreaterThan(min)
+  })
+
+  it('가격이 전부 0(거래정지)이어도 NaN 없이 안전한 도메인을 낸다', () => {
+    const { min, max, ticks } = priceAxis(Array(5).fill(0))
+    expect(Number.isFinite(min)).toBe(true)
+    expect(max).toBeGreaterThan(min)
+    expect(ticks.every(Number.isFinite)).toBe(true)
+  })
+
+  it('NaN/undefined가 섞여 있어도 유한값만 써서 안전하다', () => {
+    const { min, max } = priceAxis([10_000, NaN, undefined, 12_000])
+    expect(Number.isFinite(min)).toBe(true)
+    expect(max).toBeGreaterThan(min)
+  })
+
+  it('빈 배열이어도 죽지 않고 안전한 기본 도메인을 낸다', () => {
+    const { min, max, ticks } = priceAxis([])
+    expect(Number.isFinite(min)).toBe(true)
+    expect(max).toBeGreaterThan(min)
+    expect(ticks).toEqual([])
+  })
+
+  it('눈금은 항상 [min,max] 범위 안에 있다', () => {
+    const { min, max, ticks } = priceAxis([98_765, 123_456, 100_000, 110_000])
+    for (const t of ticks) {
+      expect(t).toBeGreaterThanOrEqual(min)
+      expect(t).toBeLessThanOrEqual(max)
+    }
+  })
+})
+
+describe('TIMEFRAMES', () => {
+  it('"틱"이 가장 촘촘하고 STEPS_PER_YEAR 해상도다', () => {
+    const tick = TIMEFRAMES.find((t) => t.key === 'T')
+    expect(tick.count).toBe(STEPS_PER_YEAR)
+    expect(tick.count).toBeGreaterThan(Math.max(...TIMEFRAMES.filter((t) => t.key !== 'T').map((t) => t.count)))
+  })
+
+  it('전부 서로 다른 다운샘플 개수를 쓴다', () => {
+    const counts = TIMEFRAMES.map((t) => t.count)
+    expect(new Set(counts).size).toBe(TIMEFRAMES.length)
   })
 })
