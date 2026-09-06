@@ -2096,43 +2096,55 @@
   color: var(--muted);
 }
 
-/* ── 리더보드 (프로젝터) */
+/* ── 리더보드 ── */
+.lb-head .acap {
+  margin-right: auto;
+}
+.lb-round {
+  color: var(--muted);
+  font-weight: 700;
+}
 .lb {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 6px;
 }
 .lb-row {
   display: flex;
   align-items: center;
-  gap: 16px;
-  padding: 14px 16px;
+  gap: var(--sp-4);
+  padding: 13px 16px;
   border-radius: var(--r-md);
   background: var(--panel-2);
   border: 1px solid transparent;
 }
-.lb-row.rank1 {
-  border-color: var(--gold);
-  background: var(--gold-soft);
-}
+/* 순위 배지 — 원형 */
 .lb-rank {
+  flex: 0 0 auto;
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  border-radius: var(--r-pill);
+  background: var(--panel);
+  border: 1px solid var(--line);
   font-family: var(--mono);
-  font-size: 20px;
+  font-size: var(--fs-md);
   font-weight: 800;
-  color: var(--dim);
-  width: 36px;
-  text-align: center;
-}
-.lb-row.rank1 .lb-rank {
-  color: var(--gold);
+  color: var(--muted);
 }
 .lb-name {
-  font-size: 15px;
+  font-size: var(--fs-md);
   font-weight: 700;
   flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .lb-move {
-  font-size: 12px;
+  flex: 0 0 auto;
+  font-size: var(--fs-sm);
   font-weight: 800;
   font-family: var(--mono);
 }
@@ -2140,50 +2152,91 @@
   color: var(--dim);
 }
 .lb-eq {
-  font-size: 15px;
+  flex: 0 0 auto;
+  font-size: var(--fs-md);
   font-weight: 700;
 }
 .lb-pct {
-  font-size: 15px;
+  flex: 0 0 auto;
+  font-size: var(--fs-md);
   font-weight: 800;
   text-align: right;
-  min-width: 100px;
+  min-width: 104px;
   display: flex;
   flex-direction: column;
 }
 .lb-pnl {
-  font-size: 11px;
+  font-size: var(--fs-xs);
   font-weight: 600;
   opacity: 0.8;
 }
+/* 상위 3 — 1위 골드, 2·3위 옅은 좌변 강조 (메달 느낌 없이 절제) */
+.lb-row.rank1 {
+  border-color: color-mix(in srgb, var(--gold) 55%, transparent);
+  background: var(--gold-soft);
+}
+.lb-row.rank1 .lb-rank {
+  background: var(--gold);
+  border-color: var(--gold);
+  color: var(--on-gold);
+}
+.lb-row.rank2,
+.lb-row.rank3 {
+  box-shadow: inset 3px 0 0 color-mix(in srgb, var(--muted) 55%, transparent);
+}
+.lb-row.rank2 .lb-rank,
+.lb-row.rank3 .lb-rank {
+  color: var(--text);
+}
 
-/* 큰 글씨 모드 — 교실 뒷자리까지 */
+/* ── 프로젝터 모드 — 화면 전체를 덮고 교실 뒷자리까지 ── */
 .board-panel.big {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
   max-width: none;
+  background: var(--bg);
+  padding: 4vh clamp(24px, 6vw, 96px);
+  overflow-y: auto;
+}
+.board-panel.big .acard {
+  border: 0;
+  background: none;
+  padding: 0;
+  gap: var(--sp-4);
+  max-width: 1400px;
+  margin: 0 auto;
+}
+.board-panel.big .lb-head .acap {
+  font-size: clamp(22px, 3.2vw, 40px);
+}
+.board-panel.big .lb {
+  gap: 10px;
 }
 .board-panel.big .lb-row {
-  padding: 20px 22px;
-  gap: 22px;
+  padding: clamp(14px, 1.6vw, 24px) clamp(16px, 2vw, 28px);
+  gap: clamp(16px, 2vw, 30px);
 }
 .board-panel.big .lb-rank {
-  font-size: 34px;
-  width: 60px;
+  width: clamp(44px, 3.4vw, 64px);
+  height: clamp(44px, 3.4vw, 64px);
+  font-size: clamp(20px, 2vw, 32px);
 }
 .board-panel.big .lb-name {
-  font-size: 28px;
+  font-size: clamp(20px, 2.4vw, 34px);
 }
-.board-panel.big .lb-eq {
-  font-size: 26px;
+.board-panel.big .lb-eq,
+.board-panel.big .lb-pct {
+  font-size: clamp(18px, 2vw, 30px);
 }
 .board-panel.big .lb-pct {
-  font-size: 26px;
-  min-width: 160px;
+  min-width: clamp(120px, 12vw, 200px);
 }
 .board-panel.big .lb-pnl {
-  font-size: 15px;
+  font-size: clamp(12px, 1vw, 17px);
 }
 .board-panel.big .lb-move {
-  font-size: 20px;
+  font-size: clamp(15px, 1.5vw, 24px);
 }
 
 /* ── 주가 생성기 ── */

@@ -75,25 +75,29 @@ export default function AdminBoard({ game, board, stocks = [] }) {
     return d > 0 ? { txt: `▲${d}`, cls: 'up' } : { txt: `▼${-d}`, cls: 'down' }
   }
 
+  const roundText =
+    game && game.current_round > 0
+      ? `ROUND ${game.current_round} · ${game.round_year_map?.[String(game.current_round)]}년`
+      : null
+
   return (
     <div className={'apanel board-panel' + (big ? ' big' : '')}>
-      <section className="acard">
-        <div className="acard-head">
+      <section className="acard lb-card">
+        <div className="acard-head lb-head">
           <span className="acap">
-            조별 순위
-            {game && game.current_round > 0 && (
-              <> · ROUND {game.current_round} · {game.round_year_map?.[String(game.current_round)]}년</>
-            )}
+            조별 순위{roundText && <span className="lb-round"> · {roundText}</span>}
           </span>
-          <button className="text-btn" disabled={busy || board.length === 0} onClick={exportResults}>
-            📥 대회 결과 내보내기 (CSV)
-          </button>
+          {!big && (
+            <button className="text-btn" disabled={busy || board.length === 0} onClick={exportResults}>
+              📥 결과 CSV
+            </button>
+          )}
           <button className="text-btn" onClick={() => setBig((b) => !b)}>
-            {big ? '보통 글씨' : '큰 글씨 (프로젝터)'}
+            {big ? '✕ 닫기' : '🖥 프로젝터 모드'}
           </button>
         </div>
 
-        <p className="anote">순위는 라운드를 넘길 때만 바뀝니다.</p>
+        {!big && <p className="anote">순위는 라운드를 넘길 때만 바뀝니다.</p>}
 
         {board.length === 0 ? (
           <p className="aempty">등록된 조가 없습니다.</p>
@@ -101,11 +105,11 @@ export default function AdminBoard({ game, board, stocks = [] }) {
           <div className="lb">
             {board.map((t) => {
               const mv = rankMove(t)
+              const r = Number(t.rank)
+              const podium =
+                r === 1 && soleFirst ? ' rank1' : r === 2 ? ' rank2' : r === 3 ? ' rank3' : ''
               return (
-                <div
-                  key={t.team_id}
-                  className={'lb-row' + (Number(t.rank) === 1 && soleFirst ? ' rank1' : '')}
-                >
+                <div key={t.team_id} className={'lb-row' + podium}>
                   <span className="lb-rank">{t.rank}</span>
                   <span className="lb-name">{t.name}</span>
                   {mv && <span className={'lb-move ' + mv.cls}>{mv.txt}</span>}
