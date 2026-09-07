@@ -487,7 +487,8 @@ export default function AdminSimulator({
   const started = (game?.current_round ?? 0) > 0
 
   return (
-    <div className="apanel">
+    <div className="apanel sim-layout">
+      <div className="sim-controls">
       <section className="acard">
         <div className="acard-head">
           <span className="acap">생성 방식</span>
@@ -797,7 +798,16 @@ export default function AdminSimulator({
           ▶ 미리보기 생성
         </button>
       </section>
+      </div>
 
+      <div className="sim-preview">
+      {!preview && (
+        <section className="acard sim-preview-empty">
+          <p className="aempty">
+            왼쪽에서 흐름을 설정한 뒤 <b>[▶ 미리보기 생성]</b>을 누르면 차트·정합성 체크·적용이 여기 나와요.
+          </p>
+        </section>
+      )}
       {preview && (
         <>
           <section className="acard">
@@ -982,6 +992,7 @@ export default function AdminSimulator({
           </section>
         </>
       )}
+      </div>
 
       <Modal open={confirmApply} onClose={() => setConfirmApply(false)} title="시뮬레이션 가격 적용">
         <div className="confirm">

@@ -868,6 +868,38 @@
   margin-top: 8px;
 }
 
+/* 주가 생성기 — 넓으면 2열: 컨트롤(좌, 스크롤) / 미리보기(우, 고정) */
+.apanel.sim-layout {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+}
+.sim-controls,
+.sim-preview {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+  min-width: 0;
+}
+.sim-preview-empty .aempty {
+  margin: 0;
+}
+@media (min-width: 1240px) {
+  .apanel.sim-layout {
+    max-width: none;
+    display: grid;
+    grid-template-columns: minmax(0, 440px) minmax(0, 1fr);
+    gap: var(--sp-4);
+    align-items: start; /* sticky가 먹으려면 stretch면 안 됨 */
+  }
+  .sim-preview {
+    position: sticky;
+    top: var(--sp-4);
+    max-height: calc(100vh - 132px);
+    overflow-y: auto;
+  }
+}
+
 /* Gemini 키 카드 — 접기(선택 설정) */
 .sim-gemini > summary {
   cursor: pointer;
