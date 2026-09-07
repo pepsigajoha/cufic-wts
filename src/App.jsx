@@ -35,6 +35,7 @@ import MyModal from './components/MyModal'
 import FinancialModal from './components/FinancialModal'
 import RoundModal from './components/RoundModal'
 import FinalModal from './components/FinalModal'
+import FirstRunGuide from './components/FirstRunGuide'
 import RankingModal from './components/RankingModal'
 import Toasts, { useToasts } from './components/Toast'
 import Admin from './admin/Admin'
@@ -103,6 +104,7 @@ function Student({ theme, onToggleTheme }) {
   })
   const [roundSummary, setRoundSummary] = useState(null)
   const [finalOpen, setFinalOpen] = useState(false) // 대회 종료 결과 모달
+  const [guideOpen, setGuideOpen] = useState(false) // 첫 입장 안내 (이 기기에서 한 번만)
   const [bankruptSeen, setBankruptSeen] = useState(false) // 파산 배너 — 이 라운드에 이 기기에서 닫았는지
   const [toasts, pushToast, dismissToast] = useToasts()
 
@@ -312,6 +314,26 @@ function Student({ theme, onToggleTheme }) {
   useEffect(() => {
     setBankruptSeen(false)
   }, [game?.current_round])
+
+  // 첫 입장 안내 — 매매 화면이 처음 뜰 때 한 번만 (이 기기 localStorage 기준)
+  useEffect(() => {
+    if (!team || !game || !selected) return
+    try {
+      if (localStorage.getItem('wts-seen-guide')) return
+    } catch {
+      return
+    }
+    setGuideOpen(true)
+  }, [team, game, selected])
+
+  const dismissGuide = useCallback(() => {
+    setGuideOpen(false)
+    try {
+      localStorage.setItem('wts-seen-guide', '1')
+    } catch {
+      /* 무시 */
+    }
+  }, [])
 
   // 속보 팝업이 열려 있으면(그리고 목록이 갱신되면) 전부 읽음 처리 → 깜빡임 멈춤
   useEffect(() => {
@@ -740,6 +762,7 @@ function Student({ theme, onToggleTheme }) {
         }
         onClose={() => setRoundSummary(null)}
       />
+      <FirstRunGuide open={guideOpen} onClose={dismissGuide} />
       <FinalModal
         open={finalOpen}
         onClose={() => setFinalOpen(false)}
