@@ -1,6 +1,11 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { errorText } from '../supabase'
 import { num, signed, pct, dirOf } from '../format'
+
+// 라운드가 열려 있는 동안 행동 텔레메트리를 자동으로 다시 집계하는 간격.
+// admin_compute_team_analytics는 조 수만큼의 가벼운 집계라 부담이 적다. 참가자 표(5초)보다
+// 느리게 잡는다 — 회전율·MDD는 라운드 스냅샷 기준이라 초 단위로 안 움직인다.
+const AUTO_COMPUTE_MS = 15000
 
 const ARCHETYPE_LABEL = {
   가치투자형: '🐢 가치투자형',
@@ -215,17 +220,44 @@ export default function AdminAnalytics({
   notify,
 }) {
   const [busy, setBusy] = useState(false)
+  const [autoAt, setAutoAt] = useState(null) // 마지막 자동 집계 시각
+  const runningRef = useRef(false) // 자동/수동 집계 겹침 방지
 
   const nameOf = (teamId) => board.find((t) => t.team_id === teamId)?.name ?? teamId
 
-  const compute = async () => {
-    setBusy(true)
+  // silent=true면 토스트를 띄우지 않는다(15초마다 자동으로 도는 경우).
+  const compute = async ({ silent = false } = {}) => {
+    if (runningRef.current) return
+    runningRef.current = true
+    if (!silent) setBusy(true)
     const r = await actions.computeTeamAnalytics()
-    setBusy(false)
-    if (!r.ok) return notify(errorText(r.error), 'down')
-    notify(`${r.computed ?? 0}개 조 집계 완료`, 'gold')
+    if (!silent) setBusy(false)
+    runningRef.current = false
+    if (!r.ok) {
+      if (!silent) notify(errorText(r.error), 'down')
+      return
+    }
+    if (silent) setAutoAt(Date.now())
+    else notify(`${r.computed ?? 0}개 조 집계 완료`, 'gold')
     await refresh()
   }
+
+  // 라운드가 열려 있는 동안 자동 재집계(마운트 시 1회 + 15초 간격). 탭을 벗어나면 멈춘다.
+  useEffect(() => {
+    if (!liveOn) return
+    void compute({ silent: true })
+    const id = setInterval(() => void compute({ silent: true }), AUTO_COMPUTE_MS)
+    return () => clearInterval(id)
+    // liveOn 토글에만 반응 — compute는 안정적(actions/refresh는 Admin.jsx에서 memo됨)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [liveOn])
+
+  // 라운드가 넘어가면(정산 직후) 한 번 더 — 타이머가 안 열려 있어도 최신 상태로.
+  useEffect(() => {
+    if (game?.current_round == null) return
+    void compute({ silent: true })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [game?.current_round])
 
   const rows = (analytics ?? []).slice().sort((a, b) => nameOf(a.team_id).localeCompare(nameOf(b.team_id)))
 
@@ -242,14 +274,22 @@ export default function AdminAnalytics({
       <section className="acard">
         <div className="acard-head">
           <span className="acap">행동 텔레메트리 · 투자성향 ({rows.length})</span>
-          <button className="text-btn" disabled={busy} onClick={compute}>
-            {busy ? '집계 중…' : '🔄 지금 집계하기'}
-          </button>
+          <span className="mon-live">
+            {liveOn
+              ? `🟢 실시간 (${AUTO_COMPUTE_MS / 1000}초 자동 집계)`
+              : autoAt
+                ? '⏸ 라운드 열리면 자동 집계'
+                : '⏸ 대기 — 라운드 타이머가 열리면 자동 집계'}
+            <button className="text-btn tiny" disabled={busy} onClick={() => compute()}>
+              {busy ? '…' : '🔄 지금'}
+            </button>
+          </span>
         </div>
 
         <p className="anote">
           회전율(총 매매대금/평균 평가금액)·포트폴리오 집중도(HHI)로 투자성향을 4분류하고, 배지를 계산합니다.
-          라운드가 진행되는 동안 아무 때나 다시 눌러 최신 값으로 갱신할 수 있어요.
+          라운드가 열려 있으면 {AUTO_COMPUTE_MS / 1000}초마다 자동으로 다시 집계돼요. 집중도·투자성향은
+          체결·보유가 바뀌면 바로 움직이고, 회전율·최대낙폭은 라운드가 넘어갈 때 갱신됩니다.
         </p>
         <p className="awarn">
           FOMO 반응시간·"존버의 달인"·"빛보다 빠른 손" 배지는 학생 화면의 상호작용 로깅(log_event)이
