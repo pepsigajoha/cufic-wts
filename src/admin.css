@@ -2456,6 +2456,42 @@
   color: var(--text);
   background: color-mix(in srgb, var(--chip-color, var(--gold)) 14%, var(--panel));
 }
+/* 다음 라운드만 — 생성할 라운드 포인터 스테퍼 */
+.sim-genround {
+  margin-top: 12px;
+}
+.sim-genround-step {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 6px;
+}
+.sim-genround-step b {
+  font-size: 13.5px;
+  font-weight: 800;
+  color: var(--text);
+  font-family: var(--mono);
+}
+.sim-genround-step button {
+  width: 30px;
+  height: 30px;
+  border-radius: var(--r-sm);
+  border: 1.5px solid var(--line);
+  background: var(--panel-2);
+  color: var(--text);
+  font-size: 17px;
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+}
+.sim-genround-step button:hover:not(:disabled) {
+  border-color: var(--accent);
+}
+.sim-genround-step button:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
 .sim-chart-wrap {
   position: relative;
 }

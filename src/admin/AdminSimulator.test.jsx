@@ -207,11 +207,35 @@ describe('다음 라운드만 모드 (단일 라운드 산출)', () => {
     expect(a001Row.textContent).toContain('12,000')
   })
 
-  it('대회 시작 전이면(current_round=0) 다음 라운드 모드가 비활성화된다', async () => {
+  it('대회 시작 전(current_round=0)에도 라운드별로 하나씩 생성할 수 있다', async () => {
     const u = userEvent.setup()
-    render(<AdminSimulator {...makeProps()} />)
+    render(<AdminSimulator {...makeNextRoundProps({
+      game: { current_round: 0, round_year_map: { 1: 2021, 2: 2022, 3: 2023 }, total_rounds: 3, final_year: 2024 },
+    })} />)
     await u.click(screen.getByText('다음 라운드만 (P_t → P_t+1)'))
-    expect(generateBtn()).toBeDisabled()
+
+    // 대회 진행 라운드와 무관하게 R1 → R2 포인터로 시작
+    expect(screen.getByText('R1 → R2 (2021 → 2022)')).toBeInTheDocument()
+    expect(generateBtn()).not.toBeDisabled()
+
+    await u.click(generateBtn())
+    expect(screen.getByRole('columnheader', { name: '2021' })).toBeInTheDocument()
+    expect(screen.getByRole('columnheader', { name: /^2022/ })).toBeInTheDocument()
+  })
+
+  it('라운드 포인터를 +로 넘기면 시작·예측 연도가 같이 올라간다', async () => {
+    const u = userEvent.setup()
+    render(<AdminSimulator {...makeNextRoundProps({
+      game: { current_round: 0, round_year_map: { 1: 2021, 2: 2022, 3: 2023 }, total_rounds: 3, final_year: 2024 },
+      stocks: [
+        { id: 'A001', name: '테스트전자', sector: 'Tech', prices: { 2021: 12000, 2022: 13000 } },
+        { id: 'A002', name: '테스트항공', sector: 'Air', prices: { 2021: 8000, 2022: 8500 } },
+      ],
+    })} />)
+    await u.click(screen.getByText('다음 라운드만 (P_t → P_t+1)'))
+    await u.click(screen.getByRole('button', { name: '다음 라운드' }))
+
+    expect(screen.getByText('R2 → R3 (2022 → 2023)')).toBeInTheDocument()
   })
 
   it('[적용 + 발행] 클릭 시 백업 → 가격적용 → 속보발행 순서로 RPC가 불린다', async () => {

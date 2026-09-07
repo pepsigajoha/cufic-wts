@@ -90,14 +90,8 @@ export default function AdminSimulator({
   const sectorColor = useMemo(() => buildSectorPalette(sectors), [sectors])
   const colorFor = (stock) => sectorColor[classifySector(stock)] ?? '#6b7280'
 
-  // "다음 라운드만" 모드에 필요한 라운드·연도 계산 — advance_round/round_year_map과 같은 규칙.
   const currentRound = game?.current_round ?? 0
-  const currentRoundYear = game?.round_year_map?.[String(currentRound)] ?? null
-  const nextRoundNumber = currentRound + 1
-  const nextRoundYear =
-    game?.round_year_map?.[String(nextRoundNumber)] ??
-    (nextRoundNumber > (game?.total_rounds ?? 0) ? (game?.final_year ?? null) : null)
-  const nextReady = currentRound > 0 && currentRound <= (game?.total_rounds ?? 0) && !!currentRoundYear && !!nextRoundYear
+  const totalRounds = game?.total_rounds ?? 0
 
   const [mode, setMode] = useState(() => (loadPersisted().mode === 'next' ? 'next' : 'batch'))
   const [macro, setMacro] = useState(() => ({ ...defaultMacro(), ...loadPersisted().macro }))
@@ -134,6 +128,18 @@ export default function AdminSimulator({
   const [keyInput, setKeyInput] = useState('')
   const [keySet, setKeySet] = useState(() => hasGeminiKey())
   const [modelInput, setModelInput] = useState(() => getGeminiModel())
+  // "다음 라운드만" 모드가 만들 라운드 포인터. 대회 진행 라운드와 독립 — 시작 전(R0)에도
+  // R1→R2, R2→R3 … 를 한 칸씩 미리 만들 수 있게 한다.
+  const [genRoundRaw, setGenRound] = useState(() => Math.max(game?.current_round ?? 0, 1))
+
+  // advance_round/round_year_map과 같은 규칙. genRound = [1, 마지막 라운드]로 죈다.
+  const genRound = Math.min(Math.max(genRoundRaw, 1), Math.max(totalRounds, 1))
+  const currentRoundYear = game?.round_year_map?.[String(genRound)] ?? null
+  const nextRoundNumber = genRound + 1
+  const nextRoundYear =
+    game?.round_year_map?.[String(nextRoundNumber)] ??
+    (nextRoundNumber > totalRounds ? (game?.final_year ?? null) : null)
+  const nextReady = !!currentRoundYear && !!nextRoundYear && stockIds.length > 0
 
   const namesById = useMemo(() => Object.fromEntries(stocks.map((s) => [s.id, s.name])), [stocks])
   // 이번 라운드 종목별 등락률(%) — 시황 프롬프트에 넘겨 문장이 실제 움직임을 설명하게 한다.
@@ -257,9 +263,15 @@ export default function AdminSimulator({
           prices[id] = row
         })
         // admin_apply_simulated_prices는 stocks.prices를 통째로 교체한다(병합 아님) — 새 연도
-        // 가격만 보내면 과거 연도가 전부 날아가 지금 보여줄 연도 가격까지 사라진다(전 종목 거래정지
-        // 버그의 원인이었다). 그래서 applyPrices도 반드시 과거+새 연도를 다 담은 prices와 같아야 한다.
-        const applyPrices = prices
+        // 가격만 보내면 나머지 연도가 전부 날아간다(전 종목 거래정지 버그의 원인이었다).
+        // 라운드별로 한 칸씩 만들 때 이미 만들어 둔 다른 연도(과거·미래)가 사라지지 않도록,
+        // 종목의 기존 전 연도 + 이번 예측 연도를 다 담아 보낸다.
+        const applyPrices = Object.fromEntries(
+          stockIds.map((id) => {
+            const stock = stocks.find((s) => s.id === id)
+            return [id, { ...(stock?.prices ?? {}), [forecastYear]: nextPrices[id] }]
+          }),
+        )
 
         setPreview({
           prices,
@@ -335,7 +347,7 @@ export default function AdminSimulator({
     return () => clearTimeout(t)
     // preview는 의도적으로 제외 — generate가 preview를 세팅하므로 넣으면 무한 루프
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [macro, quarters, useQuarters, seed, mode, stockIds])
+  }, [macro, quarters, useQuarters, seed, mode, stockIds, genRound])
 
   // ✨ AI 속보 재생성 — Gemini 우선, 키가 없거나 호출 실패면 규칙 기반으로 조용히 대체된다
   // (newsService.js가 이미 그 대체를 처리하므로 여기선 결과만 반영하면 된다).
@@ -531,11 +543,35 @@ export default function AdminSimulator({
           </button>
         </div>
         {mode === 'next' && (
-          <p className="anote">
-            {nextReady
-              ? `현재 R${currentRound}(${currentRoundYear}년) 가격을 시작가로 삼아 R${nextRoundNumber}(${nextRoundYear}년) 가격 하나만 생성합니다.`
-              : '대회가 진행 중(1라운드 이상, 마지막 라운드 이전)이어야 다음 라운드 생성을 쓸 수 있어요.'}
-          </p>
+          <div className="sim-genround">
+            <div className="sim-genround-step">
+              <button
+                type="button"
+                aria-label="이전 라운드"
+                disabled={genRound <= 1}
+                onClick={() => setGenRound(genRound - 1)}
+              >
+                –
+              </button>
+              <b>
+                R{genRound} → R{nextRoundNumber}
+                {currentRoundYear && nextRoundYear ? ` (${currentRoundYear} → ${nextRoundYear})` : ''}
+              </b>
+              <button
+                type="button"
+                aria-label="다음 라운드"
+                disabled={nextRoundNumber > totalRounds}
+                onClick={() => setGenRound(genRound + 1)}
+              >
+                +
+              </button>
+            </div>
+            <p className="anote">
+              {nextReady
+                ? `R${genRound}(${currentRoundYear}년) 가격을 시작가로 R${nextRoundNumber}(${nextRoundYear}년) 한 해만 생성합니다. 대회 시작 전에도 라운드별로 하나씩 미리 만들 수 있어요.`
+                : '종목 또는 라운드 연도 정보가 아직 없어요 — [종목·가격]·[데이터셋] 탭을 먼저 확인해주세요.'}
+            </p>
+          </div>
         )}
       </section>
 
