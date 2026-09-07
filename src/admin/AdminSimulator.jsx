@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import Modal from '../components/Modal'
 import { errorText } from '../supabase'
 import { num, pct, dirOf } from '../format'
@@ -311,6 +311,18 @@ export default function AdminSimulator({
       notify(e?.message ?? String(e), 'down')
     }
   }
+
+  // 미리보기가 이미 떠 있으면 — 파라미터(다이얼·슬라이더·분기·시드)를 만질 때마다 자동으로 다시 생성.
+  // 첫 생성은 [▶ 미리보기 생성] 버튼(마운트 시 무거운 계산 방지). 이후엔 슬라이더가 곧 차트다.
+  const genRef = useRef(generate)
+  genRef.current = generate
+  useEffect(() => {
+    if (!preview) return
+    const t = setTimeout(() => genRef.current(), 280)
+    return () => clearTimeout(t)
+    // preview는 의도적으로 제외 — generate가 preview를 세팅하므로 넣으면 무한 루프
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [macro, quarters, useQuarters, seed, mode, stockIds])
 
   // ✨ AI 속보 재생성 — Gemini 우선, 키가 없거나 호출 실패면 규칙 기반으로 조용히 대체된다
   // (newsService.js가 이미 그 대체를 처리하므로 여기선 결과만 반영하면 된다).
@@ -797,6 +809,12 @@ export default function AdminSimulator({
         <button className="text-btn" disabled={mode === 'batch' ? !ready : !nextReady} onClick={generate}>
           ▶ 미리보기 생성
         </button>
+        {preview && (
+          <p className="anote">
+            미리보기가 떠 있는 동안엔 <b>다이얼·슬라이더·분기·시드를 만지면 자동으로 다시 그려져요</b>{' '}
+            (속보·힌트 문장은 [✨] 버튼으로 따로).
+          </p>
+        )}
       </section>
       </div>
 

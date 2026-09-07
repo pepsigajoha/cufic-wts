@@ -393,12 +393,12 @@ export default function AdminProgress({
             )}
             <div className="ch-timer-btns">
               {timerRunning && (
-                <button className="act-btn" disabled={busy} onClick={togglePause}>
+                <button className="act-btn neutral" disabled={busy} onClick={togglePause}>
                   {paused ? '▶ 재개' : '⏸ 일시정지'}
                 </button>
               )}
               {endsAt && (
-                <button className="act-btn" disabled={busy} onClick={startTimerNow}>
+                <button className="act-btn neutral" disabled={busy} onClick={startTimerNow}>
                   타이머 다시 시작 ({durMin}분)
                 </button>
               )}

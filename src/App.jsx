@@ -621,7 +621,9 @@ function Student({ theme, onToggleTheme }) {
         onLogout={handleLogout}
       />
 
-      <TradeStatusStrip state={stripState} />
+      <TradeStatusStrip state={stripState}>
+        <ModeTabs mode={mode} onChange={setMode} />
+      </TradeStatusStrip>
       {bankrupt && !bankruptSeen && (
         <div className="bankrupt-warn">
           <span>
@@ -637,8 +639,6 @@ function Student({ theme, onToggleTheme }) {
           </button>
         </div>
       )}
-
-      <ModeTabs mode={mode} onChange={setMode} />
 
       <div className="app">
         <StockList
