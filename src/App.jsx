@@ -550,24 +550,47 @@ function Student({ theme, onToggleTheme }) {
     )
   }
 
-  if (loading || !game || !selected) {
+  if (loadError) {
     return (
       <>
         <RotateNotice />
         <div className="boot">
-          {loadError ? (
-            <>
-              <p className="boot-err">{errorText(loadError)}</p>
-              <button className="act-btn buy" onClick={() => load(team)} style={{ maxWidth: 200 }}>
-                다시 시도
-              </button>
-            </>
-          ) : (
-            <>
-              <div className="spinner" />
-              <p>대회 정보를 불러오는 중…</p>
-            </>
-          )}
+          <p className="boot-err">{errorText(loadError)}</p>
+          <button className="act-btn buy" onClick={() => load(team)} style={{ maxWidth: 200 }}>
+            다시 시도
+          </button>
+        </div>
+      </>
+    )
+  }
+
+  if (loading || !game || !selected) {
+    // 3열 레이아웃 모양대로 스켈레톤 — 데이터가 오면 자리가 안 튄다
+    return (
+      <>
+        <RotateNotice />
+        <div className="sk-app" aria-busy="true" aria-label="대회 정보를 불러오는 중">
+          <div className="sk-header skeleton" />
+          <div className="sk-strip skeleton" />
+          <div className="sk-grid">
+            <div className="sk-col">
+              {Array.from({ length: 9 }).map((_, i) => (
+                <div key={i} className="sk-row">
+                  <div className="skeleton sk-line" style={{ width: '52%' }} />
+                  <div className="skeleton sk-line" style={{ width: '28%' }} />
+                </div>
+              ))}
+            </div>
+            <div className="sk-col">
+              <div className="skeleton" style={{ height: 40, width: '45%' }} />
+              <div className="skeleton" style={{ flex: 1 }} />
+            </div>
+            <div className="sk-col">
+              <div className="skeleton" style={{ height: 40 }} />
+              <div className="skeleton" style={{ height: 128 }} />
+              <div className="skeleton" style={{ height: 44 }} />
+            </div>
+          </div>
         </div>
       </>
     )

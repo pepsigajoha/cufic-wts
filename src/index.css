@@ -503,6 +503,79 @@ header {
   border-bottom-color: color-mix(in srgb, var(--warn) 32%, transparent);
 }
 
+/* ===== 스켈레톤 로딩 (학생·관리자 공용) ===== */
+.skeleton {
+  position: relative;
+  overflow: hidden;
+  background: var(--panel-2);
+  border-radius: var(--r-sm);
+}
+.skeleton::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(
+    90deg,
+    transparent,
+    color-mix(in srgb, var(--text) 7%, transparent),
+    transparent
+  );
+  animation: skeleton-shimmer 1.4s ease-in-out infinite;
+}
+@keyframes skeleton-shimmer {
+  100% {
+    transform: translateX(100%);
+  }
+}
+.sk-line {
+  height: 12px;
+}
+/* 학생 첫 로드 — 3열 레이아웃 모양 그대로 */
+.sk-app {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg);
+}
+.sk-header {
+  flex: 0 0 60px;
+  border-radius: 0;
+}
+.sk-strip {
+  flex: 0 0 30px;
+  border-radius: 0;
+  opacity: 0.55;
+}
+.sk-grid {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: 300px 1fr 340px;
+  gap: 1px;
+  background: var(--line);
+}
+.sk-col {
+  background: var(--panel);
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  overflow: hidden;
+}
+.sk-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 7px 0;
+}
+@media (max-width: 1279px) {
+  .sk-grid {
+    grid-template-columns: 240px 1fr 280px;
+  }
+}
+
 /* ===== 레이아웃 ===== */
 .app {
   display: grid;

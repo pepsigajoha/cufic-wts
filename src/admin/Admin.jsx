@@ -354,6 +354,14 @@ export default function Admin({ theme, onToggleTheme }) {
 
         <main className="admin-main">
           {TAB_HELP[tab] && <p className="tab-help">{TAB_HELP[tab]}</p>}
+          {!game ? (
+            <div className="apanel" aria-busy="true" aria-label="불러오는 중">
+              <div className="skeleton" style={{ height: 132 }} />
+              <div className="skeleton" style={{ height: 200 }} />
+              <div className="skeleton" style={{ height: 160 }} />
+            </div>
+          ) : (
+            <>
           {tab === 'progress' && <AdminProgress {...shared} />}
           {tab === 'hints' && <AdminHints {...shared} />}
           {tab === 'teams' && <AdminTeams {...shared} />}
@@ -365,6 +373,8 @@ export default function Admin({ theme, onToggleTheme }) {
           {tab === 'datasets' && <AdminDatasets {...shared} />}
           {tab === 'board' && <AdminBoard {...shared} />}
           {tab === 'system' && <AdminSystem {...shared} />}
+            </>
+          )}
         </main>
       </div>
 
