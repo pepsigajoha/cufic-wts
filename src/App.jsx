@@ -377,7 +377,12 @@ function Student({ theme, onToggleTheme }) {
             pushToast('거래가 일시정지됐어요', 'down')
           } else if (sig.kind === 'broadcast') {
             // 새 속보 도착 → 재난문자처럼 팝업으로 먼저 띄운다. 회수(deleted) 신호면 조용히 갱신만.
-            if (!sig.payload?.deleted && fresh.broadcasts?.length) setAlertBc(fresh.broadcasts[0])
+            if (!sig.payload?.deleted && fresh.broadcasts?.length) {
+              const bc = fresh.broadcasts[0]
+              setAlertBc(bc)
+              // FOMO 반응시간 측정용 — 속보가 눈앞에 뜬 시각
+              actions.logEvent('broadcast_seen', null, { broadcast_id: bc.id })
+            }
           } else if (sig.kind === 'game_reset') {
             pushToast('대회가 초기화되었어요', 'gold')
           } else if (sig.kind === 'game_ended') {

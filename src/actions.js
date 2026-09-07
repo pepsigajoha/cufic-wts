@@ -21,7 +21,31 @@ export function makeActions({ getTeamCode, refetch, notify }) {
    * @param {'buy'|'sell'} side
    * @param {number} qty
    */
+  /**
+   * 행동 텔레메트리 (fire-and-forget). 절대 await 하지 않는다 — 실패해도 조용히 버린다.
+   * 서버 admin_compute_team_analytics가 FOMO 반응시간·배지 계산에 쓴다(0039).
+   * @param {'view_stock'|'open_order_panel'|'submit_order'|'broadcast_seen'|'news_seen'|'hedge_executed'} type
+   * @param {string|null} [stockId]
+   * @param {object} [meta]
+   */
+  function logEvent(type, stockId = null, meta = {}) {
+    const code = getTeamCode()
+    if (!code) return
+    try {
+      Promise.resolve(rpc('log_event', {
+        p_team_code: code,
+        p_event_type: type,
+        p_stock_id: stockId,
+        p_meta: meta,
+      })).catch(() => {})
+    } catch {
+      /* 텔레메트리는 실패해도 화면에 아무 영향 없어야 한다 */
+    }
+  }
+
   async function placeOrder(stockId, side, qty) {
+    // 클릭 시점 기록 (체결 성공/실패와 무관 — FOMO 반응시간은 "버튼을 눌렀다"는 사실이 필요하다)
+    logEvent('submit_order', stockId, { side, qty })
     const r = await rpc('place_order', {
       p_team_code: getTeamCode(),
       p_stock_id: stockId,
@@ -56,6 +80,8 @@ export function makeActions({ getTeamCode, refetch, notify }) {
       return r
     }
     await refetch()
+    // 파생·헷지 탭에서의 옵션 체결 — "철벽 방어" 배지 훅
+    logEvent('hedge_executed', null, { contract_id: contractId })
     notify?.('옵션 매수 체결됐어요', 'up')
     return r
   }
@@ -65,7 +91,7 @@ export function makeActions({ getTeamCode, refetch, notify }) {
     return rpc('quote_option_premium', { p_contract_id: contractId })
   }
 
-  return { placeOrder, placeOptionOrder, quoteOptionPremium }
+  return { placeOrder, placeOptionOrder, quoteOptionPremium, logEvent }
 }
 
 /**
