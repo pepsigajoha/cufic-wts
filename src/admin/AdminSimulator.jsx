@@ -46,6 +46,13 @@ const PRESET_DESC = {
   'slow-bear': '분기 갈수록 서서히 하락',
 }
 
+// "한 흐름" 모드의 손잡이를 한 질문씩 묻는 문장 (Toss식 설문). MACRO_DIALS.key 기준.
+const DIAL_Q = {
+  cycle: '이번 라운드, 경기는 어때요?',
+  rates: '금리와 물가는요?',
+  external: '환율·유가 같은 대외 여건은요?',
+}
+
 /** 프리셋/현재 4분기의 대략 모양(GDP 기준)을 미니 라인으로. */
 function QuarterSpark({ quarters, stroke = 'var(--gold)' }) {
   const g = quarters.map((q) => Number(q?.macro?.gdp ?? 3))
@@ -105,6 +112,12 @@ export default function AdminSimulator({
     return isValidQuarterConfigs(q) ? q : defaultQuarterConfigs()
   })
   const [qSel, setQSel] = useState(0) // 지금 편집 중인 분기(0..3)
+  // "한 흐름" 설문 진행 단계. 0..N-1 = 질문 중, >=N = 요약 화면.
+  // 이미 알려진 레벨에 다 맞아떨어지면(재방문) 요약부터, 아니면 첫 질문부터.
+  const [wizStep, setWizStep] = useState(() => {
+    const m = { ...defaultMacro(), ...loadPersisted().macro }
+    return MACRO_DIALS.every((d) => activeLevelId(d, m)) ? MACRO_DIALS.length : 0
+  })
   const [preview, setPreview] = useState(null) // { prices, applyPrices, displayYears, forecastYears, betaFx, betaOil }
   const [visible, setVisible] = useState(() => new Set(stockIds))
   const [busy, setBusy] = useState(false)
@@ -602,19 +615,85 @@ export default function AdminSimulator({
         {!useQuarters ? (
           /* ── 라운드 내내 한 흐름 ── */
           <div style={{ marginTop: 18 }}>
-            {MACRO_DIALS.map((d) => (
-              <div key={d.key} className="q-dial">
-                <span className="lbl">{d.label}</span>
-                <Segmented
-                  ariaLabel={d.label}
-                  options={d.levels}
-                  value={activeLevelId(d, macro)}
-                  onChange={(id) => setMacro((m) => ({ ...m, ...d.levels.find((l) => l.id === id).macro }))}
-                />
-                <div className="toss-num">{d.fmt(macro)}</div>
+            {wizStep < MACRO_DIALS.length ? (
+              (() => {
+                const d = MACRO_DIALS[wizStep]
+                const cur = activeLevelId(d, macro)
+                return (
+                  <div className="sim-wiz">
+                    <div className="sim-wiz-dots" aria-hidden="true">
+                      {MACRO_DIALS.map((_, i) => (
+                        <span key={i} className={'d' + (i === wizStep ? ' on' : i < wizStep ? ' done' : '')} />
+                      ))}
+                    </div>
+                    <p className="sim-wiz-q">
+                      <span className="n">
+                        {wizStep + 1}/{MACRO_DIALS.length}
+                      </span>
+                      {DIAL_Q[d.key] ?? d.label}
+                    </p>
+                    <div className="sim-wiz-opts">
+                      {d.levels.map((lv) => (
+                        <button
+                          key={lv.id}
+                          type="button"
+                          className={'sim-wiz-opt' + (cur === lv.id ? ' on' : '')}
+                          onClick={() => {
+                            setMacro((m) => ({ ...m, ...lv.macro }))
+                            setWizStep((s) => s + 1)
+                          }}
+                        >
+                          {lv.label}
+                        </button>
+                      ))}
+                    </div>
+                    <div className="sim-wiz-nav">
+                      {wizStep > 0 && (
+                        <button type="button" className="text-btn tiny" onClick={() => setWizStep((s) => s - 1)}>
+                          ← 이전
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        className="text-btn tiny"
+                        onClick={() => setWizStep(MACRO_DIALS.length)}
+                      >
+                        전체 보기 →
+                      </button>
+                    </div>
+                  </div>
+                )
+              })()
+            ) : (
+              <div className="sim-wiz-summary">
+                {MACRO_DIALS.map((d, i) => {
+                  const cur = d.levels.find((l) => l.id === activeLevelId(d, macro))
+                  return (
+                    <button
+                      key={d.key}
+                      type="button"
+                      className="sim-wiz-sumrow"
+                      onClick={() => setWizStep(i)}
+                    >
+                      <span className="k">{d.label}</span>
+                      <span className="v">{cur ? cur.label : '직접 설정'}</span>
+                      <span className="x">{d.fmt(macro)}</span>
+                    </button>
+                  )
+                })}
+                <button type="button" className="text-btn tiny" onClick={() => setWizStep(0)}>
+                  설문 다시
+                </button>
               </div>
-            ))}
-            <button type="button" className="text-btn tiny" onClick={resetToDefaults}>
+            )}
+            <button
+              type="button"
+              className="text-btn tiny"
+              onClick={() => {
+                resetToDefaults()
+                setWizStep(MACRO_DIALS.length)
+              }}
+            >
               처음값으로
             </button>
             <details style={{ marginTop: 6 }}>

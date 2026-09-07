@@ -730,6 +730,125 @@
   margin-top: 5px;
 }
 
+/* "한 흐름" Toss식 설문 — 한 번에 질문 하나 */
+.sim-wiz {
+  background: var(--panel-2);
+  border-radius: var(--r-lg);
+  padding: 18px 16px 14px;
+}
+.sim-wiz-dots {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 14px;
+}
+.sim-wiz-dots .d {
+  width: 22px;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--line);
+}
+.sim-wiz-dots .d.on {
+  background: var(--accent);
+}
+.sim-wiz-dots .d.done {
+  background: color-mix(in srgb, var(--accent) 45%, transparent);
+}
+.sim-wiz-q {
+  font-size: 16px;
+  font-weight: 800;
+  letter-spacing: -0.2px;
+  color: var(--text);
+  margin: 0 0 14px;
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+.sim-wiz-q .n {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--accent);
+  font-family: var(--mono);
+}
+.sim-wiz-opts {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.sim-wiz-opt {
+  text-align: left;
+  border: 1.5px solid var(--line);
+  background: var(--panel);
+  color: var(--text);
+  font-family: inherit;
+  font-weight: 700;
+  font-size: 14px;
+  padding: 13px 15px;
+  border-radius: var(--r-md);
+  cursor: pointer;
+  min-height: 44px;
+  transition:
+    border-color 0.12s ease,
+    background 0.12s ease;
+}
+.sim-wiz-opt:hover {
+  border-color: var(--accent);
+}
+.sim-wiz-opt.on {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+.sim-wiz-nav {
+  display: flex;
+  gap: 12px;
+  margin-top: 14px;
+}
+.sim-wiz-nav .text-btn {
+  margin-left: 0;
+}
+.sim-wiz-nav .text-btn:last-child {
+  margin-left: auto;
+}
+
+/* 설문 요약 = 세 줄, 각 줄 클릭하면 그 질문으로 */
+.sim-wiz-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.sim-wiz-sumrow {
+  display: grid;
+  grid-template-columns: 84px auto 1fr;
+  align-items: baseline;
+  gap: 10px;
+  text-align: left;
+  border: 1px solid var(--line);
+  background: var(--panel-2);
+  border-radius: var(--r-md);
+  padding: 10px 13px;
+  cursor: pointer;
+  min-height: 44px;
+  transition: border-color 0.12s ease;
+}
+.sim-wiz-sumrow:hover {
+  border-color: var(--accent);
+}
+.sim-wiz-sumrow .k {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--muted);
+}
+.sim-wiz-sumrow .v {
+  font-size: 13.5px;
+  font-weight: 800;
+  color: var(--text);
+}
+.sim-wiz-sumrow .x {
+  font-size: 11px;
+  color: var(--muted);
+  font-family: var(--mono);
+  text-align: right;
+}
+
 /* 세그먼트 컨트롤 */
 .seg {
   display: inline-flex;
