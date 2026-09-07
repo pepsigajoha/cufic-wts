@@ -1064,24 +1064,6 @@
   max-width: 320px;
 }
 
-.round-big {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  padding: 16px;
-  background: var(--panel-2);
-  border-radius: var(--r-md);
-}
-.round-big b {
-  font-size: 26px;
-  font-weight: 800;
-  letter-spacing: -0.5px;
-}
-.round-big span {
-  font-size: 12.5px;
-  color: var(--muted);
-}
-
 /* ═══════ 운영 콘솔 (진행 탭) — 라운드·타이머·다음 할 일을 한 블록에 ═══════ */
 .apanel.console {
   max-width: 1200px;
@@ -1595,37 +1577,6 @@
   border: 1px solid color-mix(in srgb, var(--line) 60%, transparent);
   border-left: 3px solid color-mix(in srgb, var(--accent) 45%, transparent);
   border-radius: var(--r-sm);
-}
-/* 진행 탭 "다음 할 일" */
-.next-action {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  border: 1.5px solid color-mix(in srgb, var(--gold) 45%, transparent);
-  background: color-mix(in srgb, var(--gold) 9%, transparent);
-}
-.na-info {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-  min-width: 0;
-}
-.na-label {
-  font-size: 11.5px;
-  font-weight: 800;
-  letter-spacing: 0.2px;
-  color: var(--gold);
-}
-.na-msg {
-  font-size: 15px;
-  font-weight: 700;
-}
-.next-action .na-btn {
-  width: auto;
-  flex: 0 0 auto;
-  padding: 13px 28px;
-  font-size: 16px;
 }
 /* 진행 탭 내부 구분선 */
 .group-sep {
@@ -2457,42 +2408,49 @@
   gap: 8px;
 }
 .sim-dock-toggle {
-  padding: 10px 14px;
-  border-radius: 999px;
-  border: 1.5px solid var(--gold);
-  background: var(--panel);
-  color: var(--gold);
-  font-weight: 700;
-  font-size: 13px;
+  padding: 10px 15px;
+  border-radius: var(--r-pill);
+  border: 1.5px solid var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-weight: 800;
+  font-size: var(--fs-base);
   cursor: pointer;
-  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.18);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.22);
+  transition: transform var(--dur-1) var(--ease-out), box-shadow var(--dur-2) var(--ease);
+}
+.sim-dock-toggle:hover {
+  box-shadow: 0 6px 20px color-mix(in srgb, var(--accent) 22%, transparent);
+}
+.sim-dock-toggle:active {
+  transform: scale(0.96);
 }
 .sim-dock-panel {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  padding: 12px;
-  width: 224px;
+  gap: var(--sp-2);
+  padding: var(--sp-3);
+  width: 236px;
   max-height: 80vh;
   overflow-y: auto;
-  border-radius: var(--r-sm);
+  border-radius: var(--r-md);
   border: 1px solid var(--line);
   background: var(--panel);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
+  box-shadow: var(--shadow-lg);
 }
 .sim-dock-badge {
-  font-size: 13px;
-  font-weight: 700;
+  font-size: var(--fs-base);
+  font-weight: 800;
   color: var(--text);
   text-align: center;
-  padding-bottom: 4px;
+  padding-bottom: 6px;
   border-bottom: 1px solid var(--line);
 }
 .sim-dock-timer {
   margin-top: 4px;
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--gold);
+  font-size: var(--fs-sm);
+  font-weight: 700;
+  color: var(--accent);
   font-family: var(--mono);
 }
 .sim-dock-divider {
