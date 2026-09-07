@@ -5,7 +5,7 @@ import { num, pct, dirOf } from '../format'
 import { generatePriceSeries, simulateNextRound, defaultMacro } from './priceSim'
 import { classifySector, buildSectorPalette } from './sectorTaxonomy'
 import { PRESETS, QUARTER_PRESETS, deriveSectorBetas } from './simulatorPresets'
-import { MACRO_FIELDS } from './macroFields'
+import { MACRO_FIELDS, fieldLevelId } from './macroFields'
 import { defaultQuarterConfigs, isValidQuarterConfigs, normalizeQuarterConfigs } from './quarterConfig'
 import Segmented from './Segmented'
 import { MACRO_DIALS, activeLevelId, quarterMood } from './macroLevels'
@@ -44,13 +44,6 @@ const PRESET_DESC = {
   'q2-crisis-q4-rebound': '2분기 급락 → 4분기 반등',
   'box-range': '오르락내리락, 제자리',
   'slow-bear': '분기 갈수록 서서히 하락',
-}
-
-// "한 흐름" 모드의 손잡이를 한 질문씩 묻는 문장 (Toss식 설문). MACRO_DIALS.key 기준.
-const DIAL_Q = {
-  cycle: '이번 라운드, 경기는 어때요?',
-  rates: '금리와 물가는요?',
-  external: '환율·유가 같은 대외 여건은요?',
 }
 
 /** 프리셋/현재 4분기의 대략 모양(GDP 기준)을 미니 라인으로. */
@@ -106,11 +99,11 @@ export default function AdminSimulator({
     return isValidQuarterConfigs(q) ? q : defaultQuarterConfigs()
   })
   const [qSel, setQSel] = useState(0) // 지금 편집 중인 분기(0..3)
-  // "한 흐름" 설문 진행 단계. 0..N-1 = 질문 중, >=N = 요약 화면.
-  // 이미 알려진 레벨에 다 맞아떨어지면(재방문) 요약부터, 아니면 첫 질문부터.
+  // "한 흐름" 설문 진행 단계. 0..6 = 지표 7개를 하나씩 질문, >=7 = 요약 화면.
+  // 기본값(전부 "보통/안정")이면 요약부터, 손댄 흔적이 있으면 첫 질문부터.
   const [wizStep, setWizStep] = useState(() => {
     const m = { ...defaultMacro(), ...loadPersisted().macro }
-    return MACRO_DIALS.every((d) => activeLevelId(d, m)) ? MACRO_DIALS.length : 0
+    return MACRO_FIELDS.every((f) => fieldLevelId(f, m)) ? MACRO_FIELDS.length : 0
   })
   const [preview, setPreview] = useState(null) // { prices, applyPrices, displayYears, forecastYears, betaFx, betaOil }
   const [visible, setVisible] = useState(() => new Set(stockIds))
@@ -640,7 +633,7 @@ export default function AdminSimulator({
       <section className="acard toss">
         <p className="toss-h">시장 흐름 설정</p>
         <p className="toss-sub">
-          경기·금리·대외 여건만 고르면 나머지 흔들림은 엔진이 알아서 만들어요.
+          거시 지표 7개를 하나씩 고르거나 슬라이더로 밀면 나머지 흔들림은 엔진이 알아서 만들어요.
           {mode === 'batch' ? ' 전 라운드에 같은 흐름이 적용됩니다.' : ' 다음 라운드에 적용됩니다.'}
         </p>
 
@@ -658,37 +651,52 @@ export default function AdminSimulator({
         {!useQuarters ? (
           /* ── 라운드 내내 한 흐름 ── */
           <div style={{ marginTop: 18 }}>
-            {wizStep < MACRO_DIALS.length ? (
+            {wizStep < MACRO_FIELDS.length ? (
               (() => {
-                const d = MACRO_DIALS[wizStep]
-                const cur = activeLevelId(d, macro)
+                const f = MACRO_FIELDS[wizStep]
+                const cur = fieldLevelId(f, macro)
                 return (
                   <div className="sim-wiz">
                     <div className="sim-wiz-dots" aria-hidden="true">
-                      {MACRO_DIALS.map((_, i) => (
+                      {MACRO_FIELDS.map((_, i) => (
                         <span key={i} className={'d' + (i === wizStep ? ' on' : i < wizStep ? ' done' : '')} />
                       ))}
                     </div>
                     <p className="sim-wiz-q">
                       <span className="n">
-                        {wizStep + 1}/{MACRO_DIALS.length}
+                        {wizStep + 1}/{MACRO_FIELDS.length}
                       </span>
-                      {DIAL_Q[d.key] ?? d.label}
+                      {f.q}
                     </p>
                     <div className="sim-wiz-opts">
-                      {d.levels.map((lv) => (
+                      {f.levels.map((lv) => (
                         <button
                           key={lv.id}
                           type="button"
                           className={'sim-wiz-opt' + (cur === lv.id ? ' on' : '')}
                           onClick={() => {
-                            setMacro((m) => ({ ...m, ...lv.macro }))
+                            setField(f.key, lv.v)
                             setWizStep((s) => s + 1)
                           }}
                         >
                           {lv.label}
                         </button>
                       ))}
+                    </div>
+                    <div className="sim-wiz-slider">
+                      <input
+                        type="range"
+                        aria-label={`${f.label} (설문 슬라이더)`}
+                        min={f.min}
+                        max={f.max}
+                        step={f.step}
+                        value={macro[f.key]}
+                        onChange={(e) => setField(f.key, Number(e.target.value))}
+                      />
+                      <span className="v">
+                        {macro[f.key]}
+                        <em>{f.label.match(/\(([^)]+)\)/)?.[1] ?? ''}</em>
+                      </span>
                     </div>
                     <div className="sim-wiz-nav">
                       {wizStep > 0 && (
@@ -699,9 +707,16 @@ export default function AdminSimulator({
                       <button
                         type="button"
                         className="text-btn tiny"
-                        onClick={() => setWizStep(MACRO_DIALS.length)}
+                        onClick={() => setWizStep((s) => s + 1)}
                       >
-                        전체 보기 →
+                        {wizStep + 1 < MACRO_FIELDS.length ? '다음 →' : '완료 →'}
+                      </button>
+                      <button
+                        type="button"
+                        className="text-btn tiny"
+                        onClick={() => setWizStep(MACRO_FIELDS.length)}
+                      >
+                        전체 보기
                       </button>
                     </div>
                   </div>
@@ -709,18 +724,18 @@ export default function AdminSimulator({
               })()
             ) : (
               <div className="sim-wiz-summary">
-                {MACRO_DIALS.map((d, i) => {
-                  const cur = d.levels.find((l) => l.id === activeLevelId(d, macro))
+                {MACRO_FIELDS.map((f, i) => {
+                  const lv = f.levels.find((l) => l.id === fieldLevelId(f, macro))
                   return (
                     <button
-                      key={d.key}
+                      key={f.key}
                       type="button"
                       className="sim-wiz-sumrow"
                       onClick={() => setWizStep(i)}
                     >
-                      <span className="k">{d.label}</span>
-                      <span className="v">{cur ? cur.label : '직접 설정'}</span>
-                      <span className="x">{d.fmt(macro)}</span>
+                      <span className="k">{f.short}</span>
+                      <span className="v">{lv ? lv.label : '직접'}</span>
+                      <span className="x">{macro[f.key]}</span>
                     </button>
                   )
                 })}
@@ -734,7 +749,7 @@ export default function AdminSimulator({
               className="text-btn tiny"
               onClick={() => {
                 resetToDefaults()
-                setWizStep(MACRO_DIALS.length)
+                setWizStep(MACRO_FIELDS.length)
               }}
             >
               처음값으로

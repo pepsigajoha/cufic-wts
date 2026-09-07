@@ -771,18 +771,20 @@
 }
 .sim-wiz-opts {
   display: flex;
-  flex-direction: column;
+  flex-flow: row wrap;
   gap: 8px;
 }
 .sim-wiz-opt {
-  text-align: left;
+  flex: 1 1 auto;
+  min-width: 92px;
+  text-align: center;
   border: 1.5px solid var(--line);
   background: var(--panel);
   color: var(--text);
   font-family: inherit;
   font-weight: 700;
   font-size: 14px;
-  padding: 13px 15px;
+  padding: 12px 14px;
   border-radius: var(--r-md);
   cursor: pointer;
   min-height: 44px;
@@ -797,8 +799,33 @@
   border-color: var(--accent);
   background: var(--accent-soft);
 }
+/* 지표를 직접 밀어보는 슬라이더 — 옮기면 미리보기가 실시간(디바운스)으로 다시 그려진다 */
+.sim-wiz-slider {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 14px;
+}
+.sim-wiz-slider input[type='range'] {
+  flex: 1;
+  min-width: 0;
+}
+.sim-wiz-slider .v {
+  font-family: var(--mono);
+  font-size: 13px;
+  font-weight: 800;
+  color: var(--text);
+  white-space: nowrap;
+}
+.sim-wiz-slider .v em {
+  font-style: normal;
+  font-weight: 600;
+  color: var(--muted);
+  margin-left: 3px;
+}
 .sim-wiz-nav {
   display: flex;
+  flex-wrap: wrap;
   gap: 12px;
   margin-top: 14px;
 }
