@@ -571,6 +571,13 @@ export default function AdminSimulator({
                 ? `R${genRound}(${currentRoundYear}년) 가격을 시작가로 R${nextRoundNumber}(${nextRoundYear}년) 한 해만 생성합니다. 대회 시작 전에도 라운드별로 하나씩 미리 만들 수 있어요.`
                 : '종목 또는 라운드 연도 정보가 아직 없어요 — [종목·가격]·[데이터셋] 탭을 먼저 확인해주세요.'}
             </p>
+            {nextReady && (
+              <p className="anote">
+                {genRound < 2
+                  ? '힌트는 R2부터예요 — 이 단계(R1→R2)에선 안 나오고, 다음 단계(R2→R3 생성)에서 R2 힌트가 만들어집니다. (R1은 원래 힌트 없음)'
+                  : `이 단계에서 ${genRound === 2 ? 'R2' : `R2~R${genRound}`} 힌트가 이 가격에 맞춰 (다시) 만들어집니다.`}
+              </p>
+            )}
           </div>
         )}
       </section>
