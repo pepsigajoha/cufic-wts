@@ -162,6 +162,8 @@ export default function JudgmentDock({
   onOpenHints,
 }) {
   const [tab, setTab] = useState('fin')
+  const [seenHintIds, setSeenHintIds] = useState(() => (hints ?? []).map((h) => h.id))
+  const newHintIds = (hints ?? []).filter((h) => !seenHintIds.includes(h.id)).map((h) => h.id)
   const [open, setOpen] = useState(() => {
     try {
       return localStorage.getItem('wts-dock') !== 'closed'
@@ -193,6 +195,7 @@ export default function JudgmentDock({
 
   return (
     <section className={'jdock' + (open ? '' : ' collapsed')} aria-label="판단 근거">
+      <div className="jd-heading"><strong>투자 판단의 근거</strong><span>{stock?.name ?? '관심 종목'} · 읽고, 비교하고, 결정해요</span></div>
       <div className="jd-tabs" role="tablist" aria-label="판단 근거">
         {TABS.map(([key, label]) => (
           <button
@@ -202,11 +205,13 @@ export default function JudgmentDock({
             className={'jd-tab' + (tab === key ? ' on' : '')}
             onClick={() => {
               setTab(key)
+              if (key === 'hint') setSeenHintIds((hints ?? []).map((h) => h.id))
               if (!open) toggle()
             }}
           >
             {label}
             {key === 'hint' && myHints.length > 0 && <b className="num">{myHints.length}</b>}
+            {key === 'hint' && newHintIds.length > 0 && <span key={newHintIds.join(',')} className="jd-new" role="status">새 힌트</span>}
           </button>
         ))}
         <button

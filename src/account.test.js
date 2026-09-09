@@ -62,6 +62,33 @@ describe('deriveAccount — 평가금액 파생', () => {
   it('원금이 0이어도 나누기 오류 없이 0%를 낸다', () => {
     expect(deriveAccount([], 0, 0).pnlPct).toBe(0)
   })
+
+  // 예금(0040·0052) — 서버 team_equity()가 활성 예금 잔액을 더한다. 여기서 빼먹으면
+  // 학생 화면만 예금액만큼 줄어 보이고 리더보드와 어긋난다("예금 넣었더니 돈이 사라졌다").
+  it('예금에 넣어도 평가금액이 줄지 않는다 (현금 → 예금 이동일 뿐)', () => {
+    const before = deriveAccount([stock()], PRINCIPAL, PRINCIPAL)
+    const after = deriveAccount([stock()], PRINCIPAL - 30_000_000, PRINCIPAL, 30_000_000)
+    expect(after.equity).toBe(before.equity)
+    expect(after.pnl).toBe(0)
+  })
+
+  it('예금 이자가 붙은 만큼 평가금액·손익이 늘어난다', () => {
+    // 3천만원을 넣고 연 3% 이자가 한 번 붙음 → 잔액 30,900,000
+    const a = deriveAccount([stock()], PRINCIPAL - 30_000_000, PRINCIPAL, 30_900_000)
+    expect(a.equity).toBe(PRINCIPAL + 900_000)
+    expect(a.pnl).toBe(900_000)
+  })
+
+  it('예금은 보유주식 평가와 따로 잡힌다 (라운드 요약이 둘을 안 섞게)', () => {
+    const a = deriveAccount([stock({ price: 74_200, holding: 100 })], 1_000_000, PRINCIPAL, 5_000_000)
+    expect(a.holdings).toBe(7_420_000)
+    expect(a.savings).toBe(5_000_000)
+    expect(a.equity).toBe(1_000_000 + 7_420_000 + 5_000_000)
+  })
+
+  it('예금을 안 넘기면 0으로 취급한다 (기존 호출부 호환)', () => {
+    expect(deriveAccount([stock()], PRINCIPAL, PRINCIPAL).savings).toBe(0)
+  })
 })
 
 describe('positionPnl — 종목별 평가손익', () => {

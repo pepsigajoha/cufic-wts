@@ -53,6 +53,12 @@ select private.set_admin_secret('원하는_비밀');
     확인하고 **[타이머 시작]**(`start_round_timer`)으로 거래를 연다. 10분 뒤 자동 마감 → 다시 [연도 넘기기].
   - **타이머 강제는 서버.** `place_order`가 `now() < round_ends_at`을 검사한다. 클라이언트
     카운트다운은 UX용일 뿐 — 마감 뒤 거래는 콘솔로도 못 뚫는다.
+  - **종가 단일가 체결 모드(0050·초보용).** `game_state.flat_pricing`(기본 false).
+    켜면 `private.exec_price`가 장중 스텝값 대신 `current_price`(그 해 종가)로 체결한다 —
+    장중 어느 시점에 주문해도 같은 값. **차트·252스텝 애니메이션·일/월/년 타임프레임은 그대로**
+    (체결 로직만 바뀐다). 차트 단타를 막고 재무·힌트 판단으로 유도하려는 것.
+    시작 전엔 [시스템] 탭 게임 설정, **진행 중엔 [진행] 탭에서 `admin_set_flat_pricing`으로 토글**(0051) —
+    다음 주문부터 반영, 이미 체결된 건 그대로.
   - **주문서 경로는 삭제됨.** 옛 일괄체결 방식(order_sheets·save_order_sheet·order_funds_ok)은
     2025 데이터 이식 때 drop했다(즉시 체결 확정).
 - **힌트는 조별로 다르다 — R2부터 자동 차등 지급.** S/A/B/C/D 등급 힌트를 조별로 다르게 준다.
@@ -68,6 +74,19 @@ select private.set_admin_secret('원하는_비밀');
   (현재 기본 데이터셋은 R1~R5 = 2020~2024, 최종 2025). `5` 같은 상수를 하드코딩하지 않는다. 마지막 [대회 종료]
   (`admin_end_game`)가 `final_year` 가격을 공개해 최종 평가금액을 스냅샷한다 —
   `current_round`를 `total_rounds+1`로 올리면 `current_price`가 `final_year`로 폴백한다(거래는 없음).
+- **학생 화면 탭 노출은 강사가 정한다(0053).** `game_state.enable_options`·`enable_savings`(기본 true).
+  `admin_set_student_features`로 **진행 중에도** 바꾼다(3라운드에 옵션 가르치고 그때 켜는 흐름).
+  안 가르친 기능이 상시 노출되면 교육 사고다 — 초보 반은 꺼서 1탭으로 쓴다. 탭이 1개면 탭 바 자체를 안 그린다
+  (`ModeTabs`, `ModeTabs.test.jsx`가 고정). 숨겨도 **이미 보유한 옵션·예금의 정산·이자는 그대로 진행된다**(화면 구성용일 뿐).
+  보고 있던 탭이 꺼지면 `App.jsx`가 `spot`으로 되돌린다.
+- **예금 = 안전자산 선택지, 금리는 거시지표 연동(0052).** 학생 화면 [🏦 예금] 탭.
+  **예금금리 = 그 라운드 연도의 `macro.rate`(기준금리) + `savings_products.BASE.annual_rate`(가산, 기본 0)** —
+  `savings_rate(round)`가 단일 소스이고 서버 이자 계산·화면 표시가 이걸 공유한다.
+  **상품별 고정금리를 부활시키지 말 것**(0040의 방식) — 시황판 기준금리와 예금금리가 같은 숫자여야
+  "금리 오르면 예금이 유리"가 데이터로 드러난다. 이자는 [연도 넘기기]에 `accrue_savings_interest`가 복리로 붙인다.
+  - **예금 잔액은 평가금액에 포함된다.** 서버 `team_equity()`와 프론트 `deriveAccount(…, savings)` **양쪽 다**.
+    한쪽만 고치면 학생 화면과 리더보드가 어긋난다(예금 넣으면 돈이 사라져 보인다). `account.test.js`가 고정.
+  - 중도해지(`withdraw_savings`)는 원금 100% + 누적이자 50%. 가입·해지는 라운드 타이머와 무관.
 - **신규상장·상장폐지는 다른 상태.** `stocks.listed_from_round` 이전 라운드엔 목록에서 미노출(상장 예정).
   가격이 0이면 거래정지·평가액 0(상장폐지). 둘을 혼동하지 않는다.
 - **입장은 두 방식 — 코드 / 자율 입장.** `game_state.join_mode`(`code`|`open`, 기본 code)가 정한다.

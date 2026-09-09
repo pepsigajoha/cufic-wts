@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { errorText } from '../supabase'
 import { num } from '../format'
 import QtyStepper from './QtyStepper'
 import VolatilitySmileModal from './VolatilitySmileModal'
@@ -53,6 +54,7 @@ export default function OptionOrderPanel({
   const contract = stockContracts.find((c) => c.id === contractId) ?? null
 
   const [qty, setQty] = useState(0)
+  const [orderError, setOrderError] = useState('')
   const [premiumPerUnit, setPremiumPerUnit] = useState(0)
   const [smileOpen, setSmileOpen] = useState(false)
 
@@ -86,7 +88,7 @@ export default function OptionOrderPanel({
   const maxAffordable = premiumPerUnit > 0 ? Math.floor(cash / premiumPerUnit) : 0
   const heldQty = stock?.holding ?? 0
 
-  const locked = !tradingOpen || !contract
+  const locked = !tradingOpen || !contract || placing
   const canBuy = tradingOpen && !!contract && !placing && qty > 0 && qty <= maxAffordable
 
   const autoFillHedge = () => {
@@ -99,8 +101,10 @@ export default function OptionOrderPanel({
 
   const submit = async () => {
     if (!contract || qty <= 0) return
-    await onOrder(contract.id, qty)
-    setQty(0)
+    setOrderError('')
+    const r = await onOrder(contract.id, qty)
+    if (r?.ok) setQty(0)
+    else setOrderError(errorText(r?.error ?? 'network'))
   }
 
   const closedNote = ended
@@ -181,6 +185,7 @@ export default function OptionOrderPanel({
             <span className="num">₩ {num(totalPremium)}</span>
           </div>
 
+          {orderError && <p className="down" role="alert">{orderError} · 수량을 확인하고 다시 주문해 주세요.</p>}
           <button className="act-btn buy" disabled={!canBuy} onClick={submit}>
             {placing ? '체결 중…' : '옵션 매수'}
           </button>

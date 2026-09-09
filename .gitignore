@@ -17,8 +17,17 @@ dist-ssr
 supabase/.branches
 supabase/.temp
 
-# Claude Code 로컬 설정 (개인 개발환경 — 공유 안 함)
-.claude/settings.local.json
+# Claude Code 로컬 설정·스킬 (개인 개발환경 — 공유 안 함)
+.claude/
+.agents/
+AGENTS.md
+skills-lock.json
+
+# 도구가 만든 로컬 잡폴더 (공유 안 함)
+Microsoft/
+
+# 로컬 개발 서버 터널링 바이너리 (53MB — 절대 커밋 금지)
+cloudflared.exe
 
 # Python 데이터 생성기 (sim_sandbox/*.py) 산출물 — 절대 커밋 금지
 __pycache__/

@@ -2829,3 +2829,158 @@ details > summary:focus-visible {
     transition: color 0.2s ease;
   }
 }
+
+/* ===== 새 데이터셋 만들기 위저드 ===== */
+.ds-wiz-open {
+  width: 100%;
+  margin-top: 4px;
+}
+.ds-wiz-hint {
+  margin: 6px 2px 12px;
+}
+/* 익숙한 사람용 개별 버튼 — 접어 둔다 */
+.ds-adv {
+  margin: 0 0 12px;
+  border-top: 1px solid var(--line);
+  padding-top: 10px;
+}
+.ds-adv > summary {
+  cursor: pointer;
+  list-style: none;
+  padding: 4px 0;
+}
+.ds-adv > summary::-webkit-details-marker {
+  display: none;
+}
+.ds-adv > summary::before {
+  content: '▸ ';
+  color: var(--dim);
+}
+.ds-adv[open] > summary::before {
+  content: '▾ ';
+}
+
+.ds-wiz {
+  padding: 4px 2px 0;
+}
+.ds-wiz-picks {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-top: 10px;
+}
+.ds-wiz-pick {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 16px 14px;
+  text-align: left;
+  border-radius: var(--r-md);
+  border: 1px solid var(--line);
+  background: var(--panel-2);
+  color: var(--text);
+}
+.ds-wiz-pick:not(:disabled):hover {
+  border-color: var(--gold);
+}
+.ds-wiz-pick:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.ds-wiz-pick .t {
+  font-size: 14px;
+  font-weight: 800;
+}
+.ds-wiz-pick .d {
+  font-size: 11.5px;
+  line-height: 1.5;
+  color: var(--muted);
+}
+/* 파일 선택 — 큰 과녁 하나 */
+.ds-wiz-drop {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  margin-top: 10px;
+  padding: 34px 18px;
+  border-radius: var(--r-md);
+  border: 2px dashed var(--line);
+  background: var(--panel-2);
+  cursor: pointer;
+  text-align: center;
+}
+.ds-wiz-drop:hover {
+  border-color: var(--gold);
+}
+.ds-wiz-drop .t {
+  font-size: 15px;
+  font-weight: 800;
+  color: var(--text);
+}
+.ds-wiz-drop .d {
+  font-size: 12px;
+  color: var(--muted);
+}
+.ds-wiz-note {
+  margin-top: 12px;
+  line-height: 1.6;
+}
+.ds-wiz-issues {
+  max-height: 260px;
+  overflow-y: auto;
+  margin-top: 10px;
+}
+.ds-wiz-name {
+  width: 100%;
+  margin-top: 10px;
+}
+/* 마지막 액션 버튼을 오른쪽 끝으로 (기본 sim-wiz-nav 규칙은 text-btn 기준이라 여기서 덮는다) */
+.ds-wiz-nav .text-btn:last-child {
+  margin-left: 0;
+}
+.ds-wiz-nav .act-btn {
+  margin-left: auto;
+}
+
+/* ===== 학생 화면 탭 노출 토글 ===== */
+.feat-toggles {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 8px;
+}
+.feat-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  border-radius: var(--r-md);
+  border: 1px solid var(--line);
+  background: var(--panel-2);
+  opacity: 0.6;
+}
+.feat-row.on {
+  opacity: 1;
+  border-color: color-mix(in srgb, var(--gold) 35%, var(--line));
+}
+.feat-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.feat-name {
+  font-size: 13px;
+  font-weight: 800;
+  color: var(--text);
+}
+.feat-desc {
+  font-size: 11px;
+  color: var(--muted);
+}
+.feat-row .tabs.mini {
+  flex: 0 0 auto;
+}

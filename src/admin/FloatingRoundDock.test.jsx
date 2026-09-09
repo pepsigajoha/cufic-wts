@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest'
-import { render, screen, cleanup } from '@testing-library/react'
+import { render, screen, cleanup, act } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import FloatingRoundDock from './FloatingRoundDock'
 
@@ -186,5 +186,34 @@ describe('⚡ 빠른 주가 생성', () => {
     expect(Object.keys(payload.A001).sort()).toEqual(['2021', '2022'])
     expect(payload.A001['2021']).toBe(10_000)
     expect(props.refresh).toHaveBeenCalledTimes(1)
+  })
+})
+
+
+describe('일시정지와 설정 시간', () => {
+  it('일시정지 중에는 시간이 고정되고 재시작 대신 재개한다', async () => {
+    const u = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
+    const props = makeProps()
+    props.game.round_paused_at = new Date().toISOString()
+    props.game.round_ends_at = new Date(Date.now() + 120_000).toISOString()
+    props.actions.resumeTimer = vi.fn().mockResolvedValue({ ok: true })
+    render(<FloatingRoundDock {...props} />)
+    await openDock(u)
+    expect(screen.getByText('⏸ 일시정지 · 2:00 남음')).toBeInTheDocument()
+    act(() => vi.advanceTimersByTime(30_000))
+    expect(screen.getByText('⏸ 일시정지 · 2:00 남음')).toBeInTheDocument()
+    await u.click(screen.getByRole('button', { name: '▶ 거래 재개' }))
+    expect(props.actions.resumeTimer).toHaveBeenCalledTimes(1)
+    expect(props.actions.startTimer).not.toHaveBeenCalled()
+  })
+
+  it('재시작은 게임에 설정된 시간을 사용한다', async () => {
+    const u = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
+    const props = makeProps()
+    props.game.round_duration_seconds = 420
+    render(<FloatingRoundDock {...props} />)
+    await openDock(u)
+    await u.click(screen.getByRole('button', { name: '⏱ 타이머 재시작' }))
+    expect(props.actions.startTimer).toHaveBeenCalledWith(7)
   })
 })

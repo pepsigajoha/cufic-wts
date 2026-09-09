@@ -43,6 +43,7 @@ export default function AdminSystem({
       defaultSeed: game.default_seed ?? 100000000,
       durationMinutes: Math.round((game.round_duration_seconds ?? 600) / 60),
       joinMode: game.join_mode ?? 'code',
+      flatPricing: game.flat_pricing ?? false,
     })
   const setCfgYear = (r, v) => setCfg((c) => ({ ...c, years: { ...c.years, [r]: v } }))
   const setTotal = (n) => {
@@ -75,6 +76,7 @@ export default function AdminSystem({
       roundYearMap,
       ...nums,
       joinMode: cfg.joinMode,
+      flatPricing: cfg.flatPricing,
     })
     setBusy(false)
     if (!res.ok) return notify(errorText(res.error), 'down')
@@ -118,7 +120,8 @@ export default function AdminSystem({
               라운드 {game.total_rounds}개 · 연도 {Object.values(game.round_year_map ?? {}).join('·')} ·
               최종 {game.final_year} · 기본 시드 ₩{num(game.default_seed)} · 타이머{' '}
               {Math.round((game.round_duration_seconds ?? 600) / 60)}분 · 입장{' '}
-              {game.join_mode === 'open' ? '자율(닉네임)' : '코드'}
+              {game.join_mode === 'open' ? '자율(닉네임)' : '코드'} · 체결{' '}
+              {game.flat_pricing ? '종가 단일가(초보용)' : '장중 스텝'}
             </p>
             <button className="text-btn" onClick={startCfg}>
               설정 편집
@@ -200,6 +203,28 @@ export default function AdminSystem({
               </div>
               <span className="anote">
                 자율: 학생이 닉네임을 정하면 그 자리에서 조가 생기고 재접속용 PIN이 발급돼요. 새 입장은 시작 전에만.
+              </span>
+            </div>
+            <div className="frow col">
+              <label>체결 방식</label>
+              <div className="tabs mini">
+                <button
+                  className={!cfg.flatPricing ? 'on' : ''}
+                  onClick={() => setCfg({ ...cfg, flatPricing: false })}
+                >
+                  장중 스텝 (실시간 시세로 체결)
+                </button>
+                <button
+                  className={cfg.flatPricing ? 'on' : ''}
+                  onClick={() => setCfg({ ...cfg, flatPricing: true })}
+                >
+                  틱 거래 잠금 (그 해 종가 단일가 · 초보용)
+                </button>
+              </div>
+              <span className="anote">
+                틱 거래 잠금: 차트·장중 애니메이션·일/월/년 조회는 그대로 두고, <b>체결만 그 해
+                종가 단일가</b>로 묶어요. 장중 어느 시점에 주문해도 같은 값에 체결돼 차트 단타가
+                무의미해집니다.
               </span>
             </div>
             <div className="arow">

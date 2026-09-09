@@ -167,6 +167,35 @@ export default function AdminProgress({
     await refresh()
   }
 
+  // 종가 단일가 체결 모드 진행 중 토글 (0051)
+  const setFlat = async (v) => {
+    if (v === !!game.flat_pricing) return
+    setBusy(true)
+    const r = await actions.setFlatPricing(v)
+    setBusy(false)
+    if (!r.ok) {
+      notify(errorText(r.error), 'down')
+      return
+    }
+    notify(v ? '종가 단일가 체결 모드 — 켰어요 (다음 주문부터)' : '장중 스텝 체결로 돌렸어요', 'gold')
+    await refresh()
+  }
+
+  // 학생 화면 탭 노출 (0053) — 시작 전·진행 중 모두 가능
+  const setFeature = async (patch) => {
+    setBusy(true)
+    const r = await actions.setStudentFeatures(patch)
+    setBusy(false)
+    if (!r.ok) {
+      notify(errorText(r.error), 'down')
+      return
+    }
+    const [k, v] = Object.entries(patch)[0]
+    const label = k === 'enableOptions' ? '파생·헷지' : '예금'
+    notify(v ? `학생 화면에 [${label}] 탭을 켰어요` : `[${label}] 탭을 숨겼어요`, 'gold')
+    await refresh()
+  }
+
   // 거래 타이머 일시정지 / 재개 (0049)
   const togglePause = async () => {
     setBusy(true)
@@ -494,6 +523,75 @@ export default function AdminProgress({
           </div>
         )}
       </section>
+
+      {/* 학생 화면 탭 노출 — 안 가르친 기능을 학생 화면에서 치운다 */}
+      <section className="acard">
+        <span className="acap">학생 화면 탭</span>
+        <p className="anote">
+          안 가르친 기능은 숨기세요. 학생 화면에 <b>즉시</b> 반영되고, 수업 중에 가르친 뒤 켜도 돼요.
+          숨겨도 이미 보유한 옵션·예금은 그대로 유지·정산됩니다.
+        </p>
+        <div className="feat-toggles">
+          {[
+            { key: 'enableOptions', on: game.enable_options !== false, label: '🛡️ 파생·헷지', desc: '옵션 매수·헷지' },
+            { key: 'enableSavings', on: game.enable_savings !== false, label: '🏦 예금', desc: '기준금리 연동 예금' },
+          ].map((f) => (
+            <div key={f.key} className={'feat-row' + (f.on ? ' on' : '')}>
+              <div className="feat-info">
+                <span className="feat-name">{f.label}</span>
+                <span className="feat-desc">{f.desc}</span>
+              </div>
+              <div className="tabs mini">
+                <button
+                  className={f.on ? 'on' : ''}
+                  disabled={busy}
+                  onClick={() => setFeature({ [f.key]: true })}
+                >
+                  보임
+                </button>
+                <button
+                  className={!f.on ? 'on' : ''}
+                  disabled={busy}
+                  onClick={() => setFeature({ [f.key]: false })}
+                >
+                  숨김
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+        {game.enable_options === false && game.enable_savings === false && (
+          <p className="anote">둘 다 숨겨서 학생은 주식 매매 화면만 봐요 (탭 바가 사라집니다).</p>
+        )}
+      </section>
+
+      {/* 체결 방식 — 진행 중에도 토글 (초보용: 차트 단타 잠금) */}
+      {!notStarted && (
+        <section className="acard">
+          <span className="acap">체결 방식</span>
+          <div className="tabs mini">
+            <button
+              className={!game.flat_pricing ? 'on' : ''}
+              disabled={busy}
+              onClick={() => setFlat(false)}
+            >
+              장중 스텝 (실시간 시세로 체결)
+            </button>
+            <button
+              className={game.flat_pricing ? 'on' : ''}
+              disabled={busy}
+              onClick={() => setFlat(true)}
+            >
+              틱 거래 잠금 (그 해 종가 단일가 · 초보용)
+            </button>
+          </div>
+          <p className="anote">
+            {game.flat_pricing
+              ? '지금은 장중 어느 시점에 주문해도 그 해 종가로 체결돼요. 차트·애니메이션은 그대로.'
+              : '지금은 장중 스텝값으로 체결돼요. 학생이 차트 단타를 하면 [틱 거래 잠금]으로 바꾸세요 — 다음 주문부터 적용.'}
+          </p>
+        </section>
+      )}
 
       {/* 거래 현황 — 이번 라운드에 누가 매매했는지 */}
       {!notStarted && (

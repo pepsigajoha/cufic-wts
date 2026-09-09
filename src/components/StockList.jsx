@@ -70,7 +70,9 @@ export default function StockList({ stocks, selectedCode, onSelect, onOpenMy, tr
           // 숫자만 갱신되고(리마운트 없음) 색이 2.4초마다 깜빡이지 않는다.
           const flashKey = live ? `${weekIdx}:${dir}` : 'static'
           return (
-            <div
+            <button
+              type="button"
+              aria-pressed={s.code === selectedCode}
               key={s.code}
               className={
                 'row' +
@@ -99,7 +101,7 @@ export default function StockList({ stocks, selectedCode, onSelect, onOpenMy, tr
                   </div>
                 </div>
               )}
-            </div>
+            </button>
           )
         })}
       </div>

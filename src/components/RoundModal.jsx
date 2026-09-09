@@ -21,6 +21,7 @@ export default function RoundModal({
   rank,
   prevRank,
   teamCount,
+  savingsRate,
   onClose,
 }) {
   // 내가 들고 있는 종목의 등락 하이라이트(내 종목 중 최고·최악).
@@ -53,11 +54,38 @@ export default function RoundModal({
   const delta = changed ? account.equity - prevEquity : account.pnl
   const deltaPct = changed ? (prevEquity ? (delta / prevEquity) * 100 : 0) : account.pnlPct
 
+  // 이번 라운드에 예금이 받은 이자. 서버(accrue_savings_interest)가 라운드 전환 때
+  // balance *= (1 + r)를 이미 적용했으므로, 방금 붙은 이자 = balance − balance/(1+r).
+  // 별도 이력 테이블 없이 확정된 잔액에서 역산한다.
+  const savings = account.savings ?? 0
+  const r = Number(savingsRate)
+  const savingsInterest =
+    savings > 0 && Number.isFinite(r) && r > 0 ? Math.round(savings - savings / (1 + r / 100)) : 0
+
   return (
     <Modal open onClose={onClose} title={`ROUND ${round.round}`} wide>
       <div className="rsum">
         <p className="year">{round.year}년이 되었습니다</p>
         <p className="sub">주가가 새로 바뀌었어요. 내 자산이 어떻게 됐는지 확인해 보세요.</p>
+
+        {/* 순위가 맨 위 — 라운드 전환에서 학생이 가장 먼저 알고 싶은 한 가지다.
+            아래 등락 막대·순위표에 묻히면 이 모달의 목적이 흐려진다. */}
+        {rank != null && (
+          <div className={'rankbox top' + (prevRank != null && rank < prevRank ? ' rise' : '')}>
+            <span className="k">내 순위</span>
+            <span className="v num">
+              {prevRank != null && prevRank !== rank ? `${prevRank}위 → ${rank}위` : `${rank}위`}
+              {teamCount ? <span className="of"> / {teamCount}조</span> : null}
+            </span>
+            {prevRank == null ? null : prevRank !== rank ? (
+              <span className={'d ' + (rank < prevRank ? 'up' : 'down')}>
+                {rank < prevRank ? `▲${prevRank - rank}` : `▼${rank - prevRank}`}
+              </span>
+            ) : (
+              <span className="d flat">유지</span>
+            )}
+          </div>
+        )}
 
         <div className="eqbox">
           <span className="k">내 평가금액</span>
@@ -76,8 +104,19 @@ export default function RoundModal({
           </div>
           <div className="rsum-card">
             <span className="k">보유주식 평가</span>
-            <span className="v num">₩ {num(account.equity - account.cash)}</span>
+            <span className="v num">₩ {num(account.holdings ?? account.equity - account.cash)}</span>
           </div>
+          {savings > 0 && (
+            <div className="rsum-card">
+              <span className="k">예금 잔액</span>
+              <span className="v num">₩ {num(savings)}</span>
+              {savingsInterest > 0 && (
+                <span className="d num up">
+                  이자 {signed(savingsInterest)} (연 {r}%)
+                </span>
+              )}
+            </div>
+          )}
           <div className="rsum-card">
             <span className="k">누적 손익(원금 대비)</span>
             <span className={'v num ' + dirOf(account.pnl)}>
@@ -86,21 +125,11 @@ export default function RoundModal({
           </div>
         </div>
 
-        {rank != null && (
-          <div className="rankbox">
-            <span className="k">내 순위</span>
-            <span className="v num">
-              {prevRank != null && prevRank !== rank ? `${prevRank}위 → ${rank}위` : `${rank}위`}
-              {teamCount ? <span className="of"> / {teamCount}조</span> : null}
-            </span>
-            {prevRank == null ? null : prevRank !== rank ? (
-              <span className={'d ' + (rank < prevRank ? 'up' : 'down')}>
-                {rank < prevRank ? `▲${prevRank - rank}` : `▼${rank - prevRank}`}
-              </span>
-            ) : (
-              <span className="d flat">유지</span>
-            )}
-          </div>
+        {savings > 0 && savingsInterest > 0 && (
+          <p className="rb-mine">
+            🏦 예금이 <b>연 {r}%</b>로 이자 <span className="num up">{signed(savingsInterest)}</span>을
+            받았어요. 주가와 상관없이 붙는 돈이에요.
+          </p>
         )}
 
         {delisted.length > 0 && (
@@ -117,17 +146,18 @@ export default function RoundModal({
           </div>
         )}
 
-        {/* 전체 종목 등락률 바 차트 */}
+        {/* 전체 종목 등락률 바 차트 — 종목이 많으면 접어 둔다(순위·내 자산이 밀리지 않게).
+            시장 폭(▲n ▼n)은 접힌 상태에서도 요약으로 보인다. */}
         {market.length > 0 && (
-          <div className="chgbars">
-            <span className="rb-cap">
+          <details className="chgbars" open={market.length <= 8}>
+            <summary className="rb-cap">
               전체 종목 등락률
               <span className="cb-breadth">
                 ▲{breadth.up} ▼{breadth.down}
                 {breadth.flat ? ` −${breadth.flat}` : ''}
                 {breadth.halted ? ` ⏸${breadth.halted}` : ''}
               </span>
-            </span>
+            </summary>
             <div className="chgbar-list">
               {market.map((s) => {
                 const w = s.halted ? 0 : Math.min(50, (Math.abs(s.chg) / maxAbs) * 50)
@@ -154,7 +184,7 @@ export default function RoundModal({
               })}
             </div>
             <p className="rb-mine">● 표시는 내가 보유한 종목이에요.</p>
-          </div>
+          </details>
         )}
 
         {/* 전체 조 순위 — 이 라운드 정산 결과 */}

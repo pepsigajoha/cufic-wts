@@ -91,7 +91,38 @@ export function makeActions({ getTeamCode, refetch, notify }) {
     return rpc('quote_option_premium', { p_contract_id: contractId })
   }
 
-  return { placeOrder, placeOptionOrder, quoteOptionPremium, logEvent }
+  /**
+   * 예금 가입. 거래 타이머와 무관하게 언제든 가능하다 —
+   * 예금은 "거래"가 아니라 자산배분 결정이라(0040 설계) place_order의 타이머 검사를 받지 않는다.
+   */
+  async function openSavings(amount) {
+    const r = await rpc('open_savings', { p_team_code: getTeamCode(), p_amount: amount })
+    if (!r.ok) {
+      notify?.(errorText(r.error), 'down')
+      return r
+    }
+    await refetch()
+    notify?.('예금에 가입했어요', 'up')
+    return r
+  }
+
+  /** 예금 해지. 중도해지라 누적이자의 50%만 지급된다(서버가 계산). */
+  async function withdrawSavings(savingsId) {
+    const r = await rpc('withdraw_savings', { p_team_code: getTeamCode(), p_savings_id: savingsId })
+    if (!r.ok) {
+      notify?.(errorText(r.error), 'down')
+      return r
+    }
+    await refetch()
+    const forfeited = Number(r.forfeited_interest ?? 0)
+    notify?.(
+      forfeited > 0 ? `해지했어요 — 이자 ₩${num(forfeited)}는 중도해지로 소멸` : '예금을 해지했어요',
+      'down',
+    )
+    return r
+  }
+
+  return { placeOrder, placeOptionOrder, quoteOptionPremium, openSavings, withdrawSavings, logEvent }
 }
 
 /**
@@ -108,6 +139,13 @@ export function makeAdminActions(getSecret) {
     adjustTimer: (deltaSeconds) => call('adjust_round_timer', { p_delta_seconds: deltaSeconds }),
     pauseTimer: () => call('pause_round_timer'), // 거래 타이머 일시정지 (0049)
     resumeTimer: () => call('resume_round_timer'), // 재개 — 멈춘 만큼 마감 시각을 뒤로 민다
+    setFlatPricing: (v) => call('admin_set_flat_pricing', { p_flat_pricing: v }), // 종가 단일가 체결 모드 진행 중 토글 (0051)
+    // 학생 화면 탭 노출 (0053). null을 넘긴 값은 그대로 둔다.
+    setStudentFeatures: (f) =>
+      call('admin_set_student_features', {
+        p_enable_options: f.enableOptions ?? null,
+        p_enable_savings: f.enableSavings ?? null,
+      }),
     endGame: () => call('admin_end_game'),
     resetGame: () => call('reset_game'),
 
@@ -209,6 +247,7 @@ export function makeAdminActions(getSecret) {
         p_default_seed: c.defaultSeed,
         p_duration_minutes: c.durationMinutes,
         p_join_mode: c.joinMode ?? null,
+        p_flat_pricing: c.flatPricing ?? null,
       }),
 
     // 데이터셋(시나리오 팩)

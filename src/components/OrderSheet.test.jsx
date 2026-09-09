@@ -3,6 +3,8 @@ import { render, screen, cleanup, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import OrderSheet from './OrderSheet'
 
+vi.mock('../supabase', () => ({ errorText: (code) => `ERR:${code}` }))
+
 afterEach(cleanup)
 
 // unit = execPrice(>0) 우선. buyable = floor(cash / unit).
@@ -70,5 +72,32 @@ describe('OrderSheet — 위험 주문 확인(UX 계층)', () => {
     expect(posbox).toHaveTextContent('보유')
     expect(posbox).toHaveTextContent('평균단가')
     expect(posbox).toHaveTextContent('평가손익')
+  })
+})
+
+
+describe('주문 가격과 실패 복구', () => {
+  it('단일가 모드에서는 장중 가격과 달라도 종가로 최대수량과 주문금액을 계산한다', async () => {
+    const u = userEvent.setup()
+    render(<OrderSheet {...base} flatPricing execPrice={50_000} onOrder={vi.fn()} />)
+    expect(screen.getByText('주문가능 10주')).toBeInTheDocument()
+    await u.click(screen.getByRole('button', { name: '최대' }))
+    expect(screen.getByLabelText('매수 수량')).toHaveValue('10')
+    await u.click(screen.getByRole('button', { name: '매수' }))
+    expect(within(screen.getByRole('dialog')).getByText('₩ 1,000,000')).toBeInTheDocument()
+  })
+
+  it('실패하면 수량과 오류가 남고 재시도 성공 후에만 초기화한다', async () => {
+    const u = userEvent.setup()
+    const onOrder = vi.fn().mockResolvedValueOnce({ ok: false, error: 'network' }).mockResolvedValueOnce({ ok: true })
+    render(<OrderSheet {...base} onOrder={onOrder} />)
+    await u.click(screen.getByRole('button', { name: '10%' }))
+    await u.click(screen.getByRole('button', { name: '매수' }))
+    expect(screen.getByLabelText('매수 수량')).toHaveValue('1')
+    expect(screen.getByRole('alert')).toHaveTextContent('ERR:network')
+    await u.click(screen.getByRole('button', { name: '매수' }))
+    expect(onOrder).toHaveBeenLastCalledWith('buy', 1)
+    expect(screen.getByLabelText('매수 수량')).toHaveValue('0')
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
   })
 })

@@ -40,11 +40,13 @@ export default function FloatingRoundDock({ game, stocks, actions, notify, refre
 
   const round = game?.current_round ?? 0
   const total = game?.total_rounds ?? 0
-  const ended = total > 0 && round > total
+  const ended = !!game?.is_ended || (total > 0 && round > total)
 
   const endsAt = game?.round_ends_at ? new Date(game.round_ends_at).getTime() : null
-  const remainMs = endsAt ? Math.max(0, endsAt - nowTs) : 0
-  const tradingOpen = round > 0 && !ended && !game?.is_locked && remainMs > 0
+  const pausedAt = game?.round_paused_at ? new Date(game.round_paused_at).getTime() : null
+  const paused = pausedAt != null
+  const remainMs = endsAt ? Math.max(0, endsAt - (pausedAt ?? nowTs)) : 0
+  const tradingOpen = round > 0 && !ended && !game?.is_locked && !paused && remainMs > 0
 
   const currentRoundYear = game?.round_year_map?.[String(round)] ?? null
   const nextRoundNumber = round + 1
@@ -64,10 +66,12 @@ export default function FloatingRoundDock({ game, stocks, actions, notify, refre
 
   const restartTimer = async () => {
     setBusy(true)
-    const r = await actions.startTimer()
+    const r = paused
+      ? await actions.resumeTimer()
+      : await actions.startTimer((game?.round_duration_seconds ?? 600) / 60)
     setBusy(false)
     if (!r.ok) return notify(errorText(r.error), 'down')
-    notify('타이머를 다시 시작했어요', 'gold')
+    notify(paused ? '거래를 재개했어요' : '타이머를 다시 시작했어요', 'gold')
     await refresh()
   }
 
@@ -158,6 +162,7 @@ export default function FloatingRoundDock({ game, stocks, actions, notify, refre
         <div className="sim-dock-panel">
           <div className="sim-dock-badge">
             {roundLabel}
+            {paused && !ended && <div className="sim-dock-timer">⏸ 일시정지 · {fmtRemain(remainMs)} 남음</div>}
             {tradingOpen && <div className="sim-dock-timer">⏱ {fmtRemain(remainMs)} 남음</div>}
           </div>
 
@@ -165,7 +170,7 @@ export default function FloatingRoundDock({ game, stocks, actions, notify, refre
             ▶ 다음 라운드 진행
           </button>
           <button type="button" className="text-btn" disabled={busy || ended || round === 0} onClick={restartTimer}>
-            ⏱ 타이머 재시작
+            {paused ? '▶ 거래 재개' : '⏱ 타이머 재시작'}
           </button>
           <button type="button" className="text-btn" onClick={() => onNavigate?.('simulator')}>
             🧮 주가 생성기 열기

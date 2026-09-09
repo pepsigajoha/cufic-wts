@@ -27,6 +27,7 @@ import OrderSheet from './components/OrderSheet'
 import ModeTabs from './components/ModeTabs'
 import PayoffDiagram from './components/PayoffDiagram'
 import OptionOrderPanel from './components/OptionOrderPanel'
+import Savings from './components/Savings'
 import HintModal from './components/HintModal'
 import BroadcastModal from './components/BroadcastModal'
 import EmergencyBroadcast from './components/EmergencyBroadcast'
@@ -82,10 +83,11 @@ function Student({ theme, onToggleTheme }) {
   const [selectedCode, setSelectedCode] = useState(null)
   const [drawings, setDrawings] = useState({})
 
-  // 파생·헷지 — 주식 매매(spot)와 화면을 전환한다. 서버 데이터가 아니라 순수 화면 상태다.
-  const [mode, setMode] = useState('spot') // 'spot' | 'hedge'
+  // 파생·헷지·예금 — 주식 매매(spot)와 화면을 전환한다. 서버 데이터가 아니라 순수 화면 상태다.
+  const [mode, setMode] = useState('spot') // 'spot' | 'hedge' | 'savings'
   const [optionsContracts, setOptionsContracts] = useState([])
   const [myOptionPositions, setMyOptionPositions] = useState([])
+  const [savings, setSavings] = useState([]) // 활성 예금 (user_savings)
   // OptionOrderPanel(오른쪽)이 지금 보고 있는 계약·프리미엄·수량을 PayoffDiagram(가운데)에 전달.
   const [hedgeQuote, setHedgeQuote] = useState({ contract: null, premiumPerUnit: 0, qty: 0 })
 
@@ -121,7 +123,14 @@ function Student({ theme, onToggleTheme }) {
   // 지금 라운드 진행률 → 스텝(0..251). 선택 종목의 "장중 현재가"(주문 예상금액·토스트용).
   const liveStep = roundStepIndex(game, nowTs)
   const selExecPrice = selected ? execPriceOf(selected, liveStep) : 0
-  const acct = useMemo(() => deriveAccount(stocks, cash, seed || 0), [stocks, cash, seed])
+  const savingsBalance = useMemo(
+    () => savings.reduce((s, r) => s + Number(r.balance ?? 0), 0),
+    [savings],
+  )
+  const acct = useMemo(
+    () => deriveAccount(stocks, cash, seed || 0, savingsBalance),
+    [stocks, cash, seed, savingsBalance],
+  )
 
   // 순위 행 (헤더 배지 · 순위 모달이 공유)
   const rankRows = useMemo(
@@ -221,6 +230,7 @@ function Student({ theme, onToggleTheme }) {
     setCash(r.cash)
     setOptionsContracts(r.optionsContracts ?? [])
     setMyOptionPositions(r.myOptionPositions ?? [])
+    setSavings(r.savings ?? [])
     setSelectedCode((c) => c ?? r.rawStocks[0]?.id ?? null)
     return true
   }, [])
@@ -249,6 +259,7 @@ function Student({ theme, onToggleTheme }) {
     setCash(r.cash)
     setOptionsContracts(r.optionsContracts ?? [])
     setMyOptionPositions(r.myOptionPositions ?? [])
+    setSavings(r.savings ?? [])
     return r
   }, [pushToast])
 
@@ -257,6 +268,13 @@ function Student({ theme, onToggleTheme }) {
     const id = setInterval(() => setNowTs(Date.now()), 1000)
     return () => clearInterval(id)
   }, [])
+
+  // 강사가 보고 있던 탭을 꺼 버리면(0053, 진행 중에도 가능) 주식 매매로 돌려보낸다.
+  // 안 그러면 사라진 탭의 화면이 그대로 남아 예금·옵션을 계속 조작할 수 있다.
+  useEffect(() => {
+    if (mode === 'hedge' && game?.enable_options === false) setMode('spot')
+    if (mode === 'savings' && game?.enable_savings === false) setMode('spot')
+  }, [mode, game?.enable_options, game?.enable_savings])
 
   // 매매 마감 30초 전 알림 (라운드마다 한 번만). 타이머가 다시 열리면 초기화된다.
   const warned30 = useRef(false)
@@ -494,8 +512,11 @@ function Student({ theme, onToggleTheme }) {
     async (side, qty) => {
       if (!selectedCode || qty <= 0) return
       setPlacing(true)
-      await actions.placeOrder(selectedCode, side, qty)
-      setPlacing(false)
+      try {
+        return await actions.placeOrder(selectedCode, side, qty)
+      } finally {
+        setPlacing(false)
+      }
     },
     [actions, selectedCode],
   )
@@ -504,13 +525,42 @@ function Student({ theme, onToggleTheme }) {
     async (contractId, qty) => {
       if (!contractId || qty <= 0) return
       setPlacing(true)
-      await actions.placeOptionOrder(contractId, qty)
-      setPlacing(false)
+      try {
+        return await actions.placeOptionOrder(contractId, qty)
+      } finally {
+        setPlacing(false)
+      }
     },
     [actions],
   )
 
   const quoteOptionPremium = useCallback((contractId) => actions.quoteOptionPremium(contractId), [actions])
+
+  // 예금 — 거래 타이머와 무관하게 언제든(서버 open_savings가 타이머를 안 본다).
+  const openSavings = useCallback(
+    async (amount) => {
+      if (!(amount > 0)) return
+      setPlacing(true)
+      try {
+        return await actions.openSavings(amount)
+      } finally {
+        setPlacing(false)
+      }
+    },
+    [actions],
+  )
+
+  const withdrawSavings = useCallback(
+    async (savingsId) => {
+      setPlacing(true)
+      try {
+        return await actions.withdrawSavings(savingsId)
+      } finally {
+        setPlacing(false)
+      }
+    },
+    [actions],
+  )
 
   // OptionOrderPanel이 보고 있는 계약·프리미엄·수량 → PayoffDiagram이 같은 값으로 곡선을 그린다.
   const onHedgeQuoteChange = useCallback((contract, premiumPerUnit, qty) => {
@@ -622,7 +672,12 @@ function Student({ theme, onToggleTheme }) {
       />
 
       <TradeStatusStrip state={stripState}>
-        <ModeTabs mode={mode} onChange={setMode} />
+        <ModeTabs
+          mode={mode}
+          onChange={setMode}
+          showOptions={game.enable_options !== false}
+          showSavings={game.enable_savings !== false}
+        />
       </TradeStatusStrip>
       {bankrupt && !bankruptSeen && (
         <div className="bankrupt-warn">
@@ -690,8 +745,24 @@ function Student({ theme, onToggleTheme }) {
               ended={ended}
               hasTraded={trades.length > 0}
               onNotify={pushToast}
+              flatPricing={game.flat_pricing}
             />
           </>
+        ) : mode === 'savings' ? (
+          <Savings
+            savings={savings}
+            rate={macro?.[year]?.rate}
+            cash={cash}
+            round={game.current_round}
+            roundYearMap={game.round_year_map}
+            macro={macro}
+            started={started}
+            ended={ended}
+            busy={placing}
+            onOpen={openSavings}
+            onWithdraw={withdrawSavings}
+            onNotify={pushToast}
+          />
         ) : (
           <>
             <PayoffDiagram
@@ -778,6 +849,7 @@ function Student({ theme, onToggleTheme }) {
         rank={myRow?.rank ?? null}
         prevRank={myRow?.prev_rank ?? null}
         teamCount={board.length}
+        savingsRate={roundSummary ? macro?.[roundSummary.year]?.rate : null}
         prevEquity={
           roundSummary
             ? Number(snapshots.find((s) => s.round === roundSummary.round - 1)?.equity ?? seed)

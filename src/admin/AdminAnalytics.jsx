@@ -205,8 +205,9 @@ function ParticipantStats({ teams, game, liveOn, refreshLive, notify }) {
  *   1) 참가자별 잔고·수익률·매매 통계 — 라운드 중 5초 자동 갱신(실시간 모니터링).
  *   2) 행동 텔레메트리 집계 — admin_compute_team_analytics(0039), 수동 재집계.
  *
- * [한계] log_event를 부르는 화면이 아직 없어서 FOMO 반응시간·일부 배지는 대부분 비어 있다.
- * 회전율·HHI·MDD는 trades·round_snapshots·positions만으로 계산되므로 지금도 정상적으로 나온다.
+ * log_event는 학생 화면에 배선돼 있다(648ddd4) — actions.js의 submit_order·broadcast_seen.
+ * 따라서 FOMO 반응시간·행동 배지도 실제 데이터로 계산된다(해당 행동이 없었던 라운드는 빈 값).
+ * 회전율·HHI·MDD는 trades·round_snapshots·positions만으로 계산된다.
  */
 export default function AdminAnalytics({
   actions,
@@ -291,10 +292,10 @@ export default function AdminAnalytics({
           라운드가 열려 있으면 {AUTO_COMPUTE_MS / 1000}초마다 자동으로 다시 집계돼요. 집중도·투자성향은
           체결·보유가 바뀌면 바로 움직이고, 회전율·최대낙폭은 라운드가 넘어갈 때 갱신됩니다.
         </p>
-        <p className="awarn">
-          FOMO 반응시간·"존버의 달인"·"빛보다 빠른 손" 배지는 학생 화면의 상호작용 로깅(log_event)이
-          아직 연결 안 돼 있어 정확하지 않을 수 있습니다. 회전율·집중도·MDD·"철벽 방어"(헷지 실행
-          로그 필요)는 실제 체결·보유 데이터만으로 계산되어 지금도 정상 동작합니다.
+        <p className="anote">
+          FOMO 반응시간·"존버의 달인"·"빛보다 빠른 손" 배지는 학생 화면의 상호작용 로깅(log_event)으로
+          계산됩니다 — 주문 클릭·속보 확인 시각이 실제로 기록돼요. 다만 그 라운드에 아무도 해당
+          행동을 하지 않았다면 비어 있을 수 있습니다. 회전율·집중도·MDD는 체결·보유 데이터로 계산됩니다.
         </p>
 
         {rows.length === 0 ? (

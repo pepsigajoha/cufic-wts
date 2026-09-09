@@ -1742,6 +1742,218 @@ header {
   font-size: 13px;
 }
 
+/* ===== 예금 탭 ===== */
+.sav-info {
+  background: var(--bg);
+}
+.sav-head {
+  flex: 0 0 auto;
+  padding: 12px 18px;
+  border-bottom: 1px solid var(--line);
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+.sav-title {
+  font-size: 15px;
+  font-weight: 800;
+  color: var(--text);
+}
+.sav-sub {
+  font-size: 11.5px;
+  color: var(--muted);
+}
+.sav-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 14px 18px 20px;
+}
+.sav-rate-now {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: baseline;
+  gap: 4px 12px;
+  padding: 14px 16px;
+  border-radius: var(--r-md);
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+}
+.sav-rate-now .k {
+  font-size: 12px;
+  color: var(--muted);
+}
+.sav-rate-now .v {
+  font-size: 26px;
+  font-weight: 800;
+  color: var(--gold);
+}
+.sav-rate-note {
+  grid-column: 1 / -1;
+  font-size: 11.5px;
+  color: var(--dim);
+}
+.sav-block {
+  margin-top: 18px;
+}
+.sav-bars {
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+  margin-top: 8px;
+  padding: 10px 4px 0;
+}
+.sav-bar {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+.sb-val {
+  font-size: 11px;
+  color: var(--muted);
+}
+.sav-bar.on .sb-val {
+  color: var(--gold);
+  font-weight: 800;
+}
+.sb-track {
+  width: 100%;
+  max-width: 46px;
+  height: 92px;
+  display: flex;
+  align-items: flex-end;
+  background: var(--panel-2);
+  border-radius: 5px;
+  overflow: hidden;
+}
+.sb-fill {
+  width: 100%;
+  background: var(--muted);
+  border-radius: 5px 5px 0 0;
+  min-height: 3px;
+}
+.sav-bar.on .sb-fill {
+  background: var(--gold);
+}
+.sb-year {
+  font-size: 10.5px;
+  color: var(--dim);
+}
+.sav-rules {
+  margin: 8px 0 0;
+  padding-left: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.sav-rules li {
+  font-size: 12px;
+  line-height: 1.55;
+  color: var(--muted);
+}
+.sav-rules b {
+  color: var(--text);
+}
+.sav-ratios {
+  display: flex;
+  gap: 6px;
+  margin: 6px 0;
+}
+.sav-ratio {
+  flex: 1;
+  height: 30px;
+  border-radius: 6px;
+  border: 1px solid var(--line);
+  background: var(--panel-2);
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+.sav-ratio:not(:disabled):hover {
+  border-color: var(--gold);
+  color: var(--gold);
+}
+.sav-ratio:disabled {
+  opacity: 0.4;
+}
+.sav-amt {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 4px 0 2px;
+}
+.sav-amt input {
+  flex: 1;
+  min-width: 0;
+  height: 38px;
+  padding: 0 10px;
+  text-align: right;
+  font-feature-settings: 'tnum';
+  border-radius: 6px;
+  border: 1px solid var(--line);
+  background: var(--panel-2);
+  color: var(--text);
+  font-size: 15px;
+  font-weight: 700;
+}
+.sav-won {
+  font-size: 12px;
+  color: var(--muted);
+}
+.sav-warn {
+  margin: 2px 2px 6px;
+  font-size: 11.5px;
+  color: var(--down);
+}
+.sav-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 8px;
+}
+.sav-row {
+  padding: 10px 12px;
+  border-radius: var(--r-md);
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+}
+.sv-main {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
+}
+.sv-bal {
+  font-size: 15px;
+  font-weight: 800;
+  color: var(--text);
+}
+.sv-gain {
+  font-size: 12px;
+  font-weight: 700;
+}
+.sv-meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  margin-top: 4px;
+  font-size: 11px;
+  color: var(--dim);
+}
+.sav-hint {
+  margin: 10px 2px 0;
+  font-size: 11.5px;
+  line-height: 1.5;
+  color: var(--dim);
+}
+.sav-hint b {
+  color: var(--muted);
+}
+
 /* ===== 라운드 전환 요약 ===== */
 .rsum {
   text-align: center;
@@ -3475,4 +3687,40 @@ td {
 }
 .delist-warn b {
   color: var(--down);
+}
+
+/* ===== 라운드 요약: 순위를 맨 위로 (0909) ===== */
+/* 라운드 전환에서 학생이 가장 먼저 알고 싶은 한 가지 — 아래 목록에 묻히지 않게 키운다. */
+.rankbox.top {
+  margin-top: 14px;
+  padding: 16px 18px;
+  border: 1px solid var(--line);
+  background: var(--panel-2);
+}
+.rankbox.top .v {
+  font-size: 24px;
+}
+.rankbox.top .d {
+  font-size: 15px;
+}
+/* 순위가 올랐을 때만 금색 테두리로 축하한다(내려간 건 강조하지 않는다 — 교육용) */
+.rankbox.top.rise {
+  border-color: color-mix(in srgb, var(--gold) 45%, transparent);
+  background: color-mix(in srgb, var(--gold) 8%, var(--panel-2));
+}
+
+/* 전체 종목 등락률 — details로 접힘 */
+.chgbars > summary {
+  cursor: pointer;
+  list-style: none;
+}
+.chgbars > summary::-webkit-details-marker {
+  display: none;
+}
+.chgbars > summary::after {
+  content: ' ▸';
+  color: var(--dim);
+}
+.chgbars[open] > summary::after {
+  content: ' ▾';
 }

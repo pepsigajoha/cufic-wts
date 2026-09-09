@@ -3,6 +3,7 @@ import { num, signed, pct, dirOf } from '../format'
 import { positionPnl } from '../account'
 import QtyStepper, { QtyRatios } from './QtyStepper'
 import Modal from './Modal'
+import { errorText } from '../supabase'
 
 // 평가금액의 이 비율 이상을 한 번에 움직이는 주문이면 확인을 한 번 받는다(오조작 방지).
 // UX 계층만 — 서버 place_order 판정은 그대로다.
@@ -32,22 +33,26 @@ export default function OrderSheet({
   stocks,
   hasTraded,
   onNotify,
+  flatPricing = false, // 종가 단일가 체결 모드 — 장중 어느 때 주문해도 그 해 종가로 체결
 }) {
   // 증권사 주문창처럼 [매수 | 매도] 토글 하나로 전환한다. 수량은 이 종목·이 방향에 한정된 임시값 —
   // App이 key={종목코드}로 리마운트하므로 종목을 바꾸면 0으로 초기화되고, 방향을 바꿔도 0으로 되돌린다.
   const [side, setSide] = useState('buy')
   const [qty, setQty] = useState(0)
   const [confirm, setConfirm] = useState(false)
+  const [orderError, setOrderError] = useState('')
+  const [receipt, setReceipt] = useState(null)
   const isBuy = side === 'buy'
   const pos = positionPnl(stock)
 
   const pickSide = (s) => {
     setSide(s)
     setQty(0)
+    setOrderError('')
   }
 
-  // 체결은 장중 스텝 가격으로 일어난다 — 예상금액·최대수량을 그 값에 맞춘다(연말 확정가 stock.price가 아니라).
-  const unit = execPrice > 0 ? execPrice : stock.price
+  // 단일가 모드에서는 종가, 그 외에는 장중 가격으로 예상금액·최대수량을 계산한다.
+  const unit = flatPricing ? stock.price : execPrice > 0 ? execPrice : stock.price
   const buyable = stock.halted || unit <= 0 ? 0 : Math.floor(cash / unit)
   const sellable = stock.halted ? 0 : stock.holding
 
@@ -58,7 +63,7 @@ export default function OrderSheet({
   const max = isBuy ? buyable : sellable
   const canSubmit = tradingOpen && !stock.halted && !placing && qty > 0 && qty <= max
   // 거래 대기(타이머 밖)·거래정지면 매수·매도 입력 전체를 완전히 잠근다(양쪽 동일 시각)
-  const locked = !tradingOpen || stock.halted
+  const locked = !tradingOpen || stock.halted || placing
 
   // 이번 주문 금액이 평가금액(예수금 + 보유평가)의 CONFIRM_RATIO 이상이면 확인 모달을 한 번 띄운다.
   const equity = cash + holdingsValue
@@ -67,9 +72,16 @@ export default function OrderSheet({
   const needsConfirm = equity > 0 && orderValue >= equity * CONFIRM_RATIO
 
   const doSubmit = async () => {
+    if (!canSubmit) return
     setConfirm(false)
-    await onOrder(side, qty)
-    setQty(0)
+    setOrderError('')
+    setReceipt(null)
+    const r = await onOrder(side, qty)
+    if (r?.ok) {
+      setReceipt({ side, qty, name: stock.name, price: Number(r.price) })
+      setQty(0)
+    }
+    else setOrderError(errorText(r?.error ?? 'network'))
   }
   const submit = () => {
     if (needsConfirm) {
@@ -104,11 +116,17 @@ export default function OrderSheet({
             <span>이 종목은 지금 사고팔 수 없어요.</span>
           </div>
         )}
+        {flatPricing && !stock.halted && (
+          <div className="halted-note">
+            <b>이번 라운드는 고정 가격으로 거래해요</b>
+            <span>차트가 움직여도 아래 거래가격은 같아요.</span>
+          </div>
+        )}
 
         {/* 장중 현재가 — 체결이 일어나는 값. 라운드 진행에 따라 초 단위로 바뀐다. */}
         {!stock.halted && tradingOpen && (
           <div className="est livenow">
-            <span>현재가 (가상 {Math.min(252, stepIndex + 1)}/252일차)</span>
+            <span>{flatPricing ? '이번 라운드 거래가격' : `현재 거래가격 (가상 ${Math.min(252, stepIndex + 1)}/252일차)`}</span>
             <span className="num">₩ {num(unit)}</span>
           </div>
         )}
@@ -120,6 +138,7 @@ export default function OrderSheet({
               className={'side-tab buy' + (isBuy ? ' on' : '')}
               role="tab"
               aria-selected={isBuy}
+              disabled={placing}
               onClick={() => pickSide('buy')}
             >
               매수
@@ -128,6 +147,7 @@ export default function OrderSheet({
               className={'side-tab sell' + (!isBuy ? ' on' : '')}
               role="tab"
               aria-selected={!isBuy}
+              disabled={placing}
               onClick={() => pickSide('sell')}
             >
               매도
@@ -192,6 +212,16 @@ export default function OrderSheet({
           >
             {placing ? '체결 중…' : isBuy ? '매수' : '매도'}
           </button>
+          <div className="order-feedback" aria-live="polite" aria-atomic="true">
+            {orderError ? <p className="order-error" role="alert">{orderError}<span>입력한 수량은 그대로예요.</span></p> : receipt ? (
+              <div className={'order-receipt ' + (receipt.side === 'buy' ? 'up' : 'down')}>
+                <svg className="receipt-check" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10" /><path d="m7 12 3 3 7-7" /></svg>
+                <div><b>{receipt.name} · {num(receipt.qty)}주 {receipt.side === 'buy' ? '매수' : '매도'} 완료</b>
+                  <span>{Number.isFinite(receipt.price) && receipt.price > 0 ? `체결가 ₩ ${num(receipt.price)} · 총 ₩ ${num(receipt.price * receipt.qty)}` : '거래 내역이 반영됐어요.'}</span>
+                </div>
+              </div>
+            ) : <p className="order-feedback-note">{placing ? '주문 결과를 확인하고 있어요.' : '수량과 예상 금액을 확인해 주세요.'}</p>}
+          </div>
         </div>
       </div>
 
@@ -266,7 +296,7 @@ export default function OrderSheet({
           <button className="cancel" onClick={() => setConfirm(false)}>
             취소
           </button>
-          <button className={isBuy ? 'buy' : 'sell'} onClick={doSubmit}>
+          <button className={isBuy ? 'buy' : 'sell'} disabled={!canSubmit} onClick={doSubmit}>
             {isBuy ? '매수' : '매도'}
           </button>
         </div>

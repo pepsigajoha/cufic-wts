@@ -131,7 +131,7 @@ function shapeMacro(rows) {
  * 실패하면 화면이 통째로 죽는 대신 {ok:false}를 돌려준다.
  */
 export async function loadAll(teamCode, teamId) {
-  const [game, stocks, paths, positions, trades, hints, snaps, board, me, cash, bcast, fin, macro, optionsContracts, myOptions] =
+  const [game, stocks, paths, positions, trades, hints, snaps, board, me, cash, bcast, fin, macro, optionsContracts, myOptions, savings] =
     await Promise.all([
       select('game_state', '*'),
       select('stocks', '*'),
@@ -148,10 +148,11 @@ export async function loadAll(teamCode, teamId) {
       rpc('get_macro'),
       select('options_contracts', '*', (q) => q.eq('active', true)),
       select('user_options_positions', '*', (q) => q.eq('team_id', teamId).order('created_at', { ascending: false })),
+      select('user_savings', '*', (q) => q.eq('team_id', teamId).eq('status', 'active').order('id')),
     ])
 
-  // stock_price_paths는 하위호환용 — 마이그레이션 20260830000043 이전 DB엔 테이블이 없어
-  // select가 실패한다. 그 경우 경로 없이(연말 확정가 폴백) 정상 동작해야 하므로 치명 목록에서 뺀다.
+  // stock_price_paths·user_savings는 하위호환용 — 그 마이그레이션 이전 DB엔 테이블이 없어
+  // select가 실패한다. 그 경우 경로 없이(연말 확정가 폴백)·예금 없이 정상 동작해야 하므로 치명 목록에서 뺀다.
   const failed = [
     game, stocks, positions, trades, hints, snaps, board, me, bcast, fin, macro, optionsContracts, myOptions,
   ].find((r) => !r.ok)
@@ -174,12 +175,13 @@ export async function loadAll(teamCode, teamId) {
     cash: Number(cash.value ?? 0),
     optionsContracts: optionsContracts.rows,
     myOptionPositions: myOptions.rows,
+    savings: savings.ok ? savings.rows : [],
   }
 }
 
 /** 신호를 받았을 때 다시 가져오는 것들 (내 조 데이터 + 공개 데이터) */
 export async function refetchMine(teamCode, teamId) {
-  const [positions, trades, hints, snaps, board, game, cash, bcast, fin, macro, stocks, paths, optionsContracts, myOptions] =
+  const [positions, trades, hints, snaps, board, game, cash, bcast, fin, macro, stocks, paths, optionsContracts, myOptions, savings] =
     await Promise.all([
       select('positions', '*', (q) => q.eq('team_id', teamId)),
       select('trades', '*', (q) => q.eq('team_id', teamId).order('created_at', { ascending: false })),
@@ -195,8 +197,9 @@ export async function refetchMine(teamCode, teamId) {
       select('stock_price_paths', 'stock_id,year,prices'), // 시뮬레이터 적용/데이터셋 전환으로 바뀔 수 있어 함께 갱신
       select('options_contracts', '*', (q) => q.eq('active', true)),
       select('user_options_positions', '*', (q) => q.eq('team_id', teamId).order('created_at', { ascending: false })),
+      select('user_savings', '*', (q) => q.eq('team_id', teamId).eq('status', 'active').order('id')),
     ])
-  // paths(stock_price_paths)는 하위호환용 — 마이그레이션 이전 DB엔 테이블이 없다. 치명 목록 제외.
+  // paths(stock_price_paths)·savings(user_savings)는 하위호환용 — 마이그레이션 이전 DB엔 테이블이 없다. 치명 목록 제외.
   const failed = [
     positions, trades, hints, snaps, board, game, bcast, fin, macro, stocks, optionsContracts, myOptions,
   ].find((r) => !r.ok)
@@ -217,6 +220,7 @@ export async function refetchMine(teamCode, teamId) {
     cash: Number(cash.value ?? 0),
     optionsContracts: optionsContracts.rows,
     myOptionPositions: myOptions.rows,
+    savings: savings.ok ? savings.rows : [],
   }
 }
 
