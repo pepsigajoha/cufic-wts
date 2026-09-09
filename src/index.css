@@ -899,9 +899,19 @@ header {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  width: 100%;
   padding: 11px 10px;
   border-radius: var(--r-md);
   cursor: pointer;
+  /* .row는 <button> — UA 스타일(흰 배경·테두리·가운데 정렬·기본 글꼴)을 걷어내고
+     주변 패널의 글자색·글꼴을 그대로 따르게 한다. */
+  appearance: none;
+  margin: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  color: inherit;
+  text-align: left;
 }
 .row:hover {
   background: var(--panel-2);
