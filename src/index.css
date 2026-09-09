@@ -1743,6 +1743,71 @@ header {
   font-size: 11.5px;
   color: var(--muted);
 }
+/* 주문 결과 피드백 — 체결 영수증 / 오류 / 대기 안내 (한 자리에서 바뀜) */
+.order-feedback {
+  margin: 6px 2px 0;
+}
+.order-feedback-note {
+  margin: 0;
+  font-size: 11.5px;
+  color: var(--muted);
+  text-align: center;
+}
+.order-error {
+  margin: 0;
+  font-size: 12px;
+  color: var(--down);
+  font-weight: 600;
+}
+.order-error span {
+  display: block;
+  font-size: 11px;
+  font-weight: 400;
+  color: var(--muted);
+}
+.order-receipt {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: var(--r-md);
+}
+.order-receipt.up {
+  background: var(--up-soft);
+}
+.order-receipt.down {
+  background: var(--down-soft);
+}
+.order-receipt b {
+  font-size: 12px;
+  color: var(--text);
+}
+.order-receipt span {
+  display: block;
+  font-size: 11px;
+  color: var(--muted);
+}
+.receipt-check {
+  flex: none;
+  width: 18px;
+  height: 18px;
+}
+.receipt-check circle {
+  fill: var(--muted);
+}
+.order-receipt.up .receipt-check circle {
+  fill: var(--up);
+}
+.order-receipt.down .receipt-check circle {
+  fill: var(--down);
+}
+.receipt-check path {
+  fill: none;
+  stroke: var(--ink);
+  stroke-width: 2.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
 .plot-empty {
   position: absolute;
   inset: 0;
