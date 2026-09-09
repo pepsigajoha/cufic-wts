@@ -1048,6 +1048,26 @@ header {
   background: var(--panel);
   border-top: 1px solid var(--line);
 }
+/* 도크 제목 — 탭 위 한 줄. 접힌 상태에선 탭 바만 남기고 숨긴다. */
+.jd-heading {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+  padding: 9px 14px 0;
+}
+.jd-heading strong {
+  font-size: var(--fs-md);
+  font-weight: 800;
+  color: var(--text);
+}
+.jd-heading span {
+  font-size: var(--fs-sm);
+  color: var(--dim);
+}
+.jdock.collapsed .jd-heading {
+  display: none;
+}
 .jd-tabs {
   display: flex;
   align-items: stretch;
@@ -1100,6 +1120,15 @@ header {
   border-radius: var(--r-pill);
   padding: 0 6px;
   font-size: var(--fs-sm);
+}
+/* '새 힌트' 배지 — 지급 직후 힌트 탭에서 눈에 띄게 (한국 증시 관례상 주의는 --up 계열) */
+.jd-new {
+  background: var(--up);
+  color: var(--ink);
+  border-radius: var(--r-pill);
+  padding: 0 6px;
+  font-size: var(--fs-sm);
+  font-weight: 700;
 }
 .jd-toggle {
   margin-left: auto;
