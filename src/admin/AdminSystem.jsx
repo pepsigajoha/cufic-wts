@@ -1,5 +1,6 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import Modal from '../components/Modal'
+import QuickJoinQr from '../components/QuickJoinQr'
 import { errorText } from '../supabase'
 import { checkContent } from '../dataCheck'
 import { num } from '../format'
@@ -25,34 +26,9 @@ export default function AdminSystem({
   const [confirmReset, setConfirmReset] = useState(false)
   const [resetText, setResetText] = useState('')
   const [busy, setBusy] = useState(false)
-  const [qrSrc, setQrSrc] = useState('')
 
   const quickJoinOn = game?.quick_join_enabled === true
   const quickJoinUrl = typeof window === 'undefined' ? '' : `${window.location.origin}/?join=quick`
-
-  useEffect(() => {
-    if (!quickJoinOn || !quickJoinUrl) {
-      setQrSrc('')
-      return
-    }
-    let alive = true
-    const css = getComputedStyle(document.documentElement)
-    import('qrcode')
-      .then(({ default: QRCode }) => QRCode.toDataURL(quickJoinUrl, {
-        width: 240,
-        margin: 2,
-        errorCorrectionLevel: 'M',
-        color: {
-          dark: css.getPropertyValue('--qr-ink').trim(),
-          light: css.getPropertyValue('--qr-bg').trim(),
-        },
-      }))
-      .then((src) => alive && setQrSrc(src))
-      .catch(() => alive && setQrSrc(''))
-    return () => {
-      alive = false
-    }
-  }, [quickJoinOn, quickJoinUrl])
 
   if (!game) return null
   const notStarted = game.current_round === 0
@@ -169,7 +145,7 @@ export default function AdminSystem({
           <div className="quick-join-body">
             {notStarted ? (
               <>
-                {qrSrc && <img className="quick-join-qr" src={qrSrc} alt="학생 QR 간편 입장 코드" />}
+                <QuickJoinQr className="quick-join-qr" url={quickJoinUrl} alt="학생 QR 간편 입장 코드" />
                 <div className="quick-join-share">
                   <b>학생에게 이 QR을 보여주세요</b>
                   <p className="anote">스캔한 기기마다 새 랜덤 닉네임이 한 번만 발급됩니다.</p>

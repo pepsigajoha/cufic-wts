@@ -3536,6 +3536,53 @@ td {
   font-weight: 700;
   line-height: 1.55;
 }
+.student-quick-join {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  margin-top: 20px;
+}
+.student-quick-qr {
+  display: block;
+  width: 220px;
+  max-width: 100%;
+  aspect-ratio: 1;
+  padding: var(--sp-2);
+  border-radius: var(--r-md);
+  background: var(--qr-bg);
+}
+.student-quick-link {
+  width: 100%;
+  min-height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--r-md);
+  background: var(--gold);
+  color: var(--on-gold);
+  font-size: var(--fs-md);
+  font-weight: 800;
+  text-decoration: none;
+}
+.student-quick-link:hover {
+  filter: brightness(1.06);
+}
+.student-login-divider {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 22px;
+  color: var(--dim);
+  font-size: var(--fs-xs);
+}
+.student-login-divider::before,
+.student-login-divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--line);
+}
 .student-login.login form {
   margin-top: 26px;
   gap: 12px;
@@ -3674,6 +3721,12 @@ td {
   .student-login-card {
     padding: 26px 22px 18px;
     border-radius: 20px;
+  }
+  .student-quick-qr {
+    display: none;
+  }
+  .student-quick-join {
+    margin-top: 18px;
   }
   .student-login .theme-fab {
     top: 14px;

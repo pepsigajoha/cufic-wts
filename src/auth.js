@@ -3,11 +3,18 @@ import { rpc, select } from './supabase'
 // 조별 코드 로그인. 검증은 서버(login_team RPC)가 한다.
 const TEAM_KEY = 'wts-team'
 
-/** 입장 방식 조회('code' | 'open'). 로그인 전 화면 분기용. game_state는 공개 읽기. */
+/** 로그인 전 공개 설정. QR은 켜져 있어도 신규 입장이 가능한 R0에서만 노출한다. */
+export async function getJoinConfig() {
+  const r = await select('game_state', 'join_mode,quick_join_enabled,current_round', (q) => q.eq('id', 1))
+  const game = r.ok ? r.rows[0] : null
+  return {
+    mode: game?.join_mode || 'code',
+    quickJoinEnabled: game?.quick_join_enabled === true && Number(game?.current_round) === 0,
+  }
+}
+
 export async function getJoinMode() {
-  const r = await select('game_state', 'join_mode', (q) => q.eq('id', 1))
-  if (r.ok && r.rows[0]?.join_mode) return r.rows[0].join_mode
-  return 'code'
+  return (await getJoinConfig()).mode
 }
 
 /**

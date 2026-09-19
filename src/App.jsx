@@ -11,7 +11,7 @@ import {
   login as authLogin,
   join as authJoin,
   quickJoin as authQuickJoin,
-  getJoinMode,
+  getJoinConfig,
   logout as authLogout,
   restore,
 } from './auth'
@@ -63,6 +63,7 @@ function Student({ theme, onToggleTheme }) {
   const [loading, setLoading] = useState(false)
   const [loadError, setLoadError] = useState(null)
   const [joinMode, setJoinMode] = useState('code') // 'code' | 'open' (로그인 전 화면 분기)
+  const [quickJoinEnabled, setQuickJoinEnabled] = useState(false)
   const [quickJoining, setQuickJoining] = useState(false)
   const [quickJoinError, setQuickJoinError] = useState('')
   const quickJoinRequested = useRef(
@@ -379,8 +380,12 @@ function Student({ theme, onToggleTheme }) {
     let alive = true
     ;(async () => {
       try {
-        getJoinMode()
-          .then((m) => alive && setJoinMode(m)) // 로그인 화면 분기용(공개 조회)
+        getJoinConfig()
+          .then((cfg) => {
+            if (!alive) return
+            setJoinMode(cfg.mode)
+            setQuickJoinEnabled(cfg.quickJoinEnabled)
+          })
           .catch((e) => console.error('[boot:getJoinMode]', e))
         if (loadTeam()) {
           const r = await restore()
@@ -420,6 +425,24 @@ function Student({ theme, onToggleTheme }) {
       alive = false
     }
   }, [load])
+
+  // 로그인 화면이 이미 열려 있어도 관리자가 QR 입장을 켜거나 끄면 즉시 반영한다.
+  useEffect(() => {
+    if (team) return
+    const syncJoinConfig = async () => {
+      const cfg = await getJoinConfig()
+      setJoinMode(cfg.mode)
+      setQuickJoinEnabled(cfg.quickJoinEnabled)
+    }
+    return subscribeSignals(
+      (sig) => {
+        if (['teams_changed', 'round_advanced', 'game_reset'].includes(sig?.kind)) void syncJoinConfig()
+      },
+      (_ok, reconnected) => {
+        if (reconnected) void syncJoinConfig()
+      },
+    )
+  }, [team])
 
   // ── 실시간 신호
   const seenRound = useRef(null)
@@ -622,6 +645,7 @@ function Student({ theme, onToggleTheme }) {
           onJoin={handleJoin}
           onCommit={commitTeam}
           notice={quickJoinError}
+          quickJoinEnabled={quickJoinEnabled}
           theme={theme}
           onToggleTheme={onToggleTheme}
         />

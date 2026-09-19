@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import ThemeToggle from './ThemeToggle'
+import QuickJoinQr from './QuickJoinQr'
 
 /**
  * 입장 화면. 두 방식 —
@@ -12,7 +13,7 @@ import ThemeToggle from './ThemeToggle'
  * @param {(name:string, pin?:string)=>Promise<{ok, team?, created?, code?, error?}>} onJoin  자율 입장 시도(입장 확정 안 함)
  * @param {(team)=>Promise<void>} onCommit  실제 입장 확정
  */
-export default function Login({ mode = 'code', onSubmit, onJoin, onCommit, notice = '', theme, onToggleTheme }) {
+export default function Login({ mode = 'code', onSubmit, onJoin, onCommit, notice = '', quickJoinEnabled = false, theme, onToggleTheme }) {
   const [code, setCode] = useState('')
   const [name, setName] = useState('')
   const [pin, setPin] = useState('')
@@ -20,6 +21,7 @@ export default function Login({ mode = 'code', onSubmit, onJoin, onCommit, notic
   const [busy, setBusy] = useState(false)
 
   const open = mode === 'open'
+  const quickJoinUrl = typeof window === 'undefined' ? '' : `${window.location.origin}/?join=quick`
 
   const submitCode = async (e) => {
     e.preventDefault()
@@ -66,11 +68,24 @@ export default function Login({ mode = 'code', onSubmit, onJoin, onCommit, notic
 
         <section className="student-login-card" aria-label="학생 입장">
           <span className="student-login-badge">학생 입장</span>
-          <h2>{open ? '조 이름과 PIN을 입력하세요' : '참가 코드를 입력하세요'}</h2>
+          <h2>{quickJoinEnabled ? 'QR로 바로 입장하세요' : open ? '조 이름과 PIN을 입력하세요' : '참가 코드를 입력하세요'}</h2>
           <p className="student-login-guide">
-            {open ? '선생님이 알려준 정보로 바로 시작할 수 있어요.' : '선생님에게 받은 조별 코드를 입력해 주세요.'}
+            {quickJoinEnabled
+              ? '스캔하면 랜덤 닉네임을 받고 게임에 바로 참여해요.'
+              : open
+                ? '선생님이 알려준 정보로 바로 시작할 수 있어요.'
+                : '선생님에게 받은 조별 코드를 입력해 주세요.'}
           </p>
           {notice && <p className="quick-join-notice" role="status">{notice}</p>}
+          {quickJoinEnabled && (
+            <>
+              <div className="student-quick-join">
+                <QuickJoinQr className="student-quick-qr" url={quickJoinUrl} />
+                <a className="student-quick-link" href="?join=quick">이 기기에서 바로 입장</a>
+              </div>
+              <div className="student-login-divider"><span>또는 직접 입력</span></div>
+            </>
+          )}
 
         {/* ── 코드 방식 ── */}
         {!open && (
@@ -86,7 +101,7 @@ export default function Login({ mode = 'code', onSubmit, onJoin, onCommit, notic
                     if (error) setError('')
                   }}
                   placeholder="TIGER-03"
-                  autoFocus
+                  autoFocus={!quickJoinEnabled}
                   autoComplete="off"
                   spellCheck="false"
                   enterKeyHint="go"
@@ -116,7 +131,7 @@ export default function Login({ mode = 'code', onSubmit, onJoin, onCommit, notic
                   }}
                   placeholder="예: 불꽃투자단"
                   maxLength={12}
-                  autoFocus
+                  autoFocus={!quickJoinEnabled}
                   autoComplete="off"
                   spellCheck="false"
                   enterKeyHint="next"
