@@ -40,6 +40,33 @@ export async function join(name, pin) {
   return { ok: true, team: { id: r.team_id, code: r.code, name: r.name }, created: !!r.created }
 }
 
+/** QR 간편 입장 — 서버가 랜덤 이름과 참가 코드를 만든 1인 조로 즉시 입장한다. */
+export async function quickJoin() {
+  const r = await rpc('quick_join_team')
+  if (!r.ok) {
+    const MSG = {
+      quick_join_disabled: '지금은 QR 간편 입장이 닫혀 있어요. 강사 선생님께 확인해 주세요.',
+      join_closed: '대회가 시작돼 QR 신규 입장이 마감됐어요.',
+      nickname_unavailable: '랜덤 이름을 만들지 못했어요. 다시 시도해 주세요.',
+    }
+    return {
+      ok: false,
+      error: MSG[r.error] || '연결이 불안정해요. 다시 시도해 주세요.',
+      code: r.error,
+    }
+  }
+  try {
+    localStorage.setItem(TEAM_KEY, r.code)
+  } catch {
+    // 저장 실패해도 현재 세션 입장은 허용
+  }
+  return {
+    ok: true,
+    team: { id: r.team_id, code: r.code, name: r.name },
+    created: true,
+  }
+}
+
 export function loadTeam() {
   try {
     return localStorage.getItem(TEAM_KEY) || null

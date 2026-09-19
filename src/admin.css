@@ -3087,6 +3087,75 @@ details > summary:focus-visible {
   gap: 8px;
   margin-top: 8px;
 }
+
+/* ===== QR 간편 입장 ===== */
+.quick-join-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--sp-4);
+}
+.quick-join-head > div:first-child {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+}
+.quick-join-body {
+  display: grid;
+  grid-template-columns: 220px minmax(0, 1fr);
+  align-items: center;
+  gap: var(--sp-5);
+  padding: var(--sp-4);
+  border-radius: var(--r-lg);
+  background: var(--panel-2);
+}
+.quick-join-qr {
+  display: block;
+  width: 220px;
+  max-width: 100%;
+  aspect-ratio: 1;
+  padding: var(--sp-2);
+  border-radius: var(--r-md);
+  background: var(--qr-bg);
+}
+.quick-join-share {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--sp-3);
+  min-width: 0;
+}
+.quick-join-share > b {
+  font-size: var(--fs-lg);
+}
+.quick-join-share code {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  background: var(--panel);
+  color: var(--muted);
+  font-family: var(--mono);
+  font-size: var(--fs-xs);
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 640px) {
+  .quick-join-head {
+    align-items: stretch;
+    flex-direction: column;
+  }
+  .quick-join-head .tabs.mini {
+    align-self: flex-start;
+  }
+  .quick-join-body {
+    grid-template-columns: 1fr;
+  }
+  .quick-join-qr {
+    justify-self: center;
+  }
+}
 .feat-row {
   display: flex;
   align-items: center;

@@ -12,7 +12,7 @@ import ThemeToggle from './ThemeToggle'
  * @param {(name:string, pin?:string)=>Promise<{ok, team?, created?, code?, error?}>} onJoin  자율 입장 시도(입장 확정 안 함)
  * @param {(team)=>Promise<void>} onCommit  실제 입장 확정
  */
-export default function Login({ mode = 'code', onSubmit, onJoin, onCommit, theme, onToggleTheme }) {
+export default function Login({ mode = 'code', onSubmit, onJoin, onCommit, notice = '', theme, onToggleTheme }) {
   const [code, setCode] = useState('')
   const [name, setName] = useState('')
   const [pin, setPin] = useState('')
@@ -70,6 +70,7 @@ export default function Login({ mode = 'code', onSubmit, onJoin, onCommit, theme
           <p className="student-login-guide">
             {open ? '선생님이 알려준 정보로 바로 시작할 수 있어요.' : '선생님에게 받은 조별 코드를 입력해 주세요.'}
           </p>
+          {notice && <p className="quick-join-notice" role="status">{notice}</p>}
 
         {/* ── 코드 방식 ── */}
         {!open && (

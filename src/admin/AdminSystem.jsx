@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import Modal from '../components/Modal'
 import { errorText } from '../supabase'
 import { checkContent } from '../dataCheck'
@@ -25,6 +25,34 @@ export default function AdminSystem({
   const [confirmReset, setConfirmReset] = useState(false)
   const [resetText, setResetText] = useState('')
   const [busy, setBusy] = useState(false)
+  const [qrSrc, setQrSrc] = useState('')
+
+  const quickJoinOn = game?.quick_join_enabled === true
+  const quickJoinUrl = typeof window === 'undefined' ? '' : `${window.location.origin}/?join=quick`
+
+  useEffect(() => {
+    if (!quickJoinOn || !quickJoinUrl) {
+      setQrSrc('')
+      return
+    }
+    let alive = true
+    const css = getComputedStyle(document.documentElement)
+    import('qrcode')
+      .then(({ default: QRCode }) => QRCode.toDataURL(quickJoinUrl, {
+        width: 240,
+        margin: 2,
+        errorCorrectionLevel: 'M',
+        color: {
+          dark: css.getPropertyValue('--qr-ink').trim(),
+          light: css.getPropertyValue('--qr-bg').trim(),
+        },
+      }))
+      .then((src) => alive && setQrSrc(src))
+      .catch(() => alive && setQrSrc(''))
+    return () => {
+      alive = false
+    }
+  }, [quickJoinOn, quickJoinUrl])
 
   if (!game) return null
   const notStarted = game.current_round === 0
@@ -105,8 +133,58 @@ export default function AdminSystem({
     await refresh()
   }
 
+  const updateQuickJoin = async (enabled) => {
+    setBusy(true)
+    const r = await actions.setQuickJoin(enabled)
+    setBusy(false)
+    if (!r.ok) return notify(errorText(r.error), 'down')
+    notify(enabled ? 'QR 간편 입장을 열었어요' : 'QR 간편 입장을 닫았어요', 'gold')
+    await refresh()
+  }
+
+  const copyQuickJoinUrl = async () => {
+    try {
+      await navigator.clipboard.writeText(quickJoinUrl)
+      notify('QR 입장 링크를 복사했어요', 'gold')
+    } catch {
+      notify('링크를 복사하지 못했어요', 'down')
+    }
+  }
+
   return (
     <div className="apanel">
+      {/* QR 간편 입장 — 켠 동안 R0에서만 랜덤 이름의 1인 조를 만든다. */}
+      <section className="acard quick-join-card">
+        <div className="quick-join-head">
+          <div>
+            <span className="acap">QR 간편 입장</span>
+            <p className="anote">학생은 QR만 찍으면 랜덤 이름의 1인 조로 바로 들어옵니다.</p>
+          </div>
+          <div className="tabs mini" aria-label="QR 간편 입장 설정">
+            <button className={quickJoinOn ? 'on' : ''} disabled={busy || quickJoinOn} onClick={() => updateQuickJoin(true)}>켜기</button>
+            <button className={!quickJoinOn ? 'on' : ''} disabled={busy || !quickJoinOn} onClick={() => updateQuickJoin(false)}>끄기</button>
+          </div>
+        </div>
+        {quickJoinOn && (
+          <div className="quick-join-body">
+            {notStarted ? (
+              <>
+                {qrSrc && <img className="quick-join-qr" src={qrSrc} alt="학생 QR 간편 입장 코드" />}
+                <div className="quick-join-share">
+                  <b>학생에게 이 QR을 보여주세요</b>
+                  <p className="anote">스캔한 기기마다 새 랜덤 닉네임이 한 번만 발급됩니다.</p>
+                  <code>{quickJoinUrl}</code>
+                  <button className="text-btn" onClick={copyQuickJoinUrl}>입장 링크 복사</button>
+                </div>
+              </>
+            ) : (
+              <p className="anote">대회가 이미 시작돼 신규 입장은 마감됐어요. 다음 게임을 시작하기 전에 이용해 주세요.</p>
+            )}
+          </div>
+        )}
+        {!quickJoinOn && <p className="anote">필요할 때만 켜고, 학생 입장이 끝나면 꺼두세요.</p>}
+      </section>
+
       {/* 게임 설정 */}
       <section className="acard">
         <span className="acap">게임 설정 {notStarted ? '' : '(시작 후에는 잠김)'}</span>

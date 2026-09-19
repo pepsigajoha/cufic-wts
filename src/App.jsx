@@ -10,6 +10,7 @@ import {
   loadTeam,
   login as authLogin,
   join as authJoin,
+  quickJoin as authQuickJoin,
   getJoinMode,
   logout as authLogout,
   restore,
@@ -62,6 +63,12 @@ function Student({ theme, onToggleTheme }) {
   const [loading, setLoading] = useState(false)
   const [loadError, setLoadError] = useState(null)
   const [joinMode, setJoinMode] = useState('code') // 'code' | 'open' (로그인 전 화면 분기)
+  const [quickJoining, setQuickJoining] = useState(false)
+  const [quickJoinError, setQuickJoinError] = useState('')
+  const quickJoinRequested = useRef(
+    typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('join') === 'quick',
+  )
+  const quickJoinRequest = useRef(null)
 
   const [game, setGame] = useState(null)
   const [rawStocks, setRawStocks] = useState([])
@@ -375,12 +382,33 @@ function Student({ theme, onToggleTheme }) {
         getJoinMode()
           .then((m) => alive && setJoinMode(m)) // 로그인 화면 분기용(공개 조회)
           .catch((e) => console.error('[boot:getJoinMode]', e))
-        if (!loadTeam()) return
-        const r = await restore()
-        if (!alive) return
-        if (r.ok) {
-          setTeam(r.team)
-          await load(r.team)
+        if (loadTeam()) {
+          const r = await restore()
+          if (!alive) return
+          if (r.ok) {
+            setTeam(r.team)
+            await load(r.team)
+          }
+          return
+        }
+
+        if (quickJoinRequested.current) {
+          setQuickJoining(true)
+          // StrictMode가 effect를 두 번 실행해도 서버에는 한 번만 요청한다.
+          quickJoinRequest.current ??= authQuickJoin()
+          const r = await quickJoinRequest.current
+          // 로그아웃·새로고침 때 새 조가 또 생기지 않게 일회성 파라미터를 지운다.
+          const url = new URL(window.location.href)
+          url.searchParams.delete('join')
+          window.history.replaceState(null, '', url.pathname + url.search + url.hash)
+          if (!alive) return
+          if (r.ok) {
+            setTeam(r.team)
+            await load(r.team)
+          } else {
+            setQuickJoinError(r.error)
+          }
+          setQuickJoining(false)
         }
       } catch (e) {
         console.error('[boot]', e)
@@ -579,7 +607,7 @@ function Student({ theme, onToggleTheme }) {
       <>
         <div className="boot">
           <div className="spinner" />
-          <p>불러오는 중…</p>
+          <p>{quickJoining ? '랜덤 닉네임을 만들고 있어요…' : '불러오는 중…'}</p>
         </div>
       </>
     )
@@ -593,6 +621,7 @@ function Student({ theme, onToggleTheme }) {
           onSubmit={handleLogin}
           onJoin={handleJoin}
           onCommit={commitTeam}
+          notice={quickJoinError}
           theme={theme}
           onToggleTheme={onToggleTheme}
         />

@@ -58,6 +58,8 @@
   --r-pill: 999px;
   --ink: #fff; /* 컬러 버튼 위 글자 */
   --on-gold: #241a06; /* 골드(강조) 버튼 위 글자 — 두 테마 공통 */
+  --qr-ink: #111827;
+  --qr-bg: #ffffff;
 
   /* ── Typography 스케일. 새 규칙·이번에 손댄 규칙은 이 8단계로 수렴한다.
      (기존 2500줄의 하드코딩 px를 한 번에 바꾸지는 않는다 — 점진 이관.) */
@@ -3521,6 +3523,17 @@ td {
   margin-top: 8px;
   color: var(--muted);
   font-size: var(--fs-base);
+  line-height: 1.55;
+}
+.quick-join-notice {
+  margin-top: 16px;
+  padding: 11px 12px;
+  border: 1px solid color-mix(in srgb, var(--up) 28%, var(--line));
+  border-radius: var(--r-md);
+  background: var(--up-soft);
+  color: var(--up);
+  font-size: var(--fs-sm);
+  font-weight: 700;
   line-height: 1.55;
 }
 .student-login.login form {

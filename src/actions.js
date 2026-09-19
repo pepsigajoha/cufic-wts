@@ -159,6 +159,7 @@ export function makeAdminActions(getSecret) {
     renameTeam: (code, name) => call('admin_rename_team', { p_code: code, p_name: name }),
     setTeamSeed: (code, seed) => call('admin_set_team_seed', { p_code: code, p_seed: seed }),
     setGamePin: () => call('admin_set_game_pin'), // 공용 게임 PIN 무작위 발급/재발급
+    setQuickJoin: (enabled) => call('admin_set_quick_join', { p_enabled: enabled }),
 
     listHints: () => call('admin_list_hints'),
     upsertHint: (h) =>
