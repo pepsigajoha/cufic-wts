@@ -200,6 +200,8 @@ body {
 #root {
   display: flex;
   flex-direction: column;
+  height: 100dvh;
+  min-height: 0;
   overflow: hidden;
 }
 button {
@@ -325,6 +327,34 @@ header {
 }
 .text-btn:hover {
   color: var(--text);
+}
+.logout-btn svg {
+  display: none;
+  width: 20px;
+  height: 20px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+}
+.mobile-context,
+.mobile-order-actions,
+.student-mobile-nav {
+  display: none;
+}
+.stock-find { flex: 0 0 auto; padding: 12px; border-bottom: 1px solid var(--line-soft); }
+.stock-find input { width: 100%; min-width: 0; min-height: var(--ctl-h); padding: 8px 12px; border: 1px solid var(--line); border-radius: var(--r-md); background: var(--panel-2); color: var(--text); font: inherit; }
+.stock-find input::placeholder { color: var(--muted); }
+.stock-filters { display: flex; gap: 8px; margin-top: 8px; }
+.stock-filters button { flex: 1; min-height: var(--ctl-h); border: 0; border-radius: var(--r-sm); background: none; color: var(--muted); font: inherit; font-weight: 700; }
+.stock-filters button[aria-pressed='true'] { background: var(--panel-2); color: var(--text); }
+.stock-empty { padding: 20px 12px; color: var(--muted); font-size: 14px; line-height: 1.6; }
+.payoff-plot {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+.payoff-svg {
+  display: block;
 }
 
 /* ===== 상단 바: 정보 위계 (1차 / 2차 / 유틸) =====
@@ -1286,6 +1316,10 @@ header {
   color: var(--gold);
   border-color: var(--gold);
 }
+.mobile-chart-control { display: none !important; }
+.modal:has(.chart-expanded) { height: calc(100dvh - 48px); }
+.modal:has(.chart-expanded) .mbody { display: flex; flex: 1; min-height: 0; padding: 0; overflow: auto; }
+.chart-expanded { flex: 1; min-width: 0; min-height: 360px; }
 .draw {
   display: flex;
   flex-wrap: wrap;
@@ -1390,7 +1424,6 @@ header {
   }
 }
 .price-fill {
-  fill: url(#price-fill);
   stroke: none;
   animation: fill-in 0.55s var(--ease-out);
 }
@@ -3472,56 +3505,6 @@ td {
   border-bottom: 1px solid var(--line);
 }
 
-/* ===== 세로 화면 안내 ===== */
-.rotate-notice {
-  display: none;
-}
-.rn-card {
-  text-align: center;
-  padding: 32px;
-  max-width: 320px;
-}
-.rn-card .ico {
-  color: var(--gold);
-  animation: rock 2.2s ease-in-out infinite;
-  transform-origin: center;
-}
-@keyframes rock {
-  0%,
-  45%,
-  100% {
-    transform: rotate(0deg);
-  }
-  70%,
-  92% {
-    transform: rotate(-90deg);
-  }
-}
-.rn-card h2 {
-  font-size: 19px;
-  font-weight: 800;
-  margin-top: 22px;
-  letter-spacing: -0.4px;
-}
-.rn-card p {
-  font-size: 13px;
-  color: var(--muted);
-  margin-top: 10px;
-  line-height: 1.6;
-}
-
-/* 세로 태블릿/폰: 회전 안내로 전체를 덮는다. 가로로 돌리면 자동 복귀. */
-@media (orientation: portrait) and (max-width: 1023px) {
-  .rotate-notice {
-    display: grid;
-    place-items: center;
-    position: fixed;
-    inset: 0;
-    z-index: 100; /* 모달(50) · 토스트(80)보다 위 */
-    background: var(--bg);
-  }
-}
-
 /* ===== 태블릿 가로 (1024~1279px) ===== */
 @media (max-width: 1279px) {
   .app {
@@ -3827,4 +3810,224 @@ td {
 }
 .chgbars[open] > summary::after {
   content: ' ▾';
+}
+.side-tab:not(.on) {
+  background: var(--panel-2);
+  border-color: var(--line);
+  color: var(--muted);
+}
+
+/* ===== 모바일: 한 화면에서 한 작업 (세로·가로 공통) ===== */
+@media (max-width: 1023px) {
+  .student-header {
+    flex: 0 0 auto;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 8px;
+    padding: max(10px, env(safe-area-inset-top)) 12px 10px;
+    overflow: visible;
+  }
+  .student-header .logo { display: none; }
+  .student-header .hdr-primary {
+    grid-column: 1 / -1;
+    display: grid;
+    grid-template-columns: auto auto minmax(0, 1fr);
+    gap: 8px;
+  }
+  .student-header .hp-round { padding: 7px 8px; font-size: 12px; }
+  .student-header .hp-quarter { display: none; }
+  .student-header .hp-equity { padding-left: 8px; min-width: 0; }
+  .student-header .hpe-v { font-size: clamp(13px, 4vw, 17px); }
+  .student-header .hpe-p { font-size: 12px; }
+  .student-header .timer-pill { min-width: 0; }
+  .student-header .tp-top { gap: 5px; padding: 7px 8px; }
+  .student-header .tp-label { display: none; }
+  .student-header .tp-time { font-size: 14px; letter-spacing: 0; }
+  .student-header .hdr-secondary { margin: 0; gap: 6px; }
+  .student-header .hs-team { flex: 1; max-width: none; }
+  .student-header .hs-btn { padding: 0 9px; }
+  .student-header .hs-btn em { display: none; }
+  .student-header .hbtns { margin: 0; padding: 0; border: 0; gap: 8px; }
+  .logout-btn { display: grid; place-items: center; width: 44px; padding: 0; }
+  .logout-btn svg { display: block; }
+  .logout-btn span { display: none; }
+
+  .trade-strip { display: flex; flex-direction: column; gap: 8px; padding: 8px 12px; }
+  .ts-modes { width: 100%; }
+  .ts-modes:has(.mode-tabs:empty) { display: none; }
+  .ts-modes .mode-tabs { width: 100%; gap: 8px; }
+  .ts-modes .mode-tab { flex: 1; min-height: 44px; padding: 6px; font-size: 12px; }
+  .ts-msg { font-size: 12px; line-height: 1.5; text-align: left; }
+
+  .mobile-context {
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 6px 12px;
+    background: var(--panel);
+    border-bottom: 1px solid var(--line);
+  }
+  .mobile-context button {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+    min-height: 44px;
+    border: 0;
+    background: none;
+    color: var(--text);
+    text-align: left;
+    font-size: 16px;
+    font-weight: 800;
+  }
+  .mobile-context button span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .mobile-context .mobile-back { flex: none; font-size: 13px; color: var(--muted); }
+  .mobile-context .mobile-back > span:first-child { font-size: 28px; font-weight: 400; }
+  .mobile-context strong { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 16px; }
+  .mobile-context .mobile-list-return { flex: none; padding: 0 10px; border-radius: var(--r-sm); background: var(--panel-2); color: var(--text); font-size: 13px; }
+  .app { display: flex; gap: 0; background: var(--bg); }
+  .app > .col { display: none; width: 100%; min-width: 0; }
+  .app.mobile-view-stocks > .stocklist,
+  .app.mobile-view-analysis > .chart-col,
+  .app.mobile-view-analysis > .chart.hedge,
+  .app.mobile-view-analysis > .sav-info,
+  .app.mobile-view-order > .order { display: flex; }
+  .stocklist .rows { padding: 8px 12px; }
+  .stock-find { padding: 12px 16px 8px; }
+  .stock-find input { min-height: 48px; font-size: 16px; }
+  .stock-filters button { min-height: 44px; font-size: 14px; }
+  .stocklist .row { min-height: 72px; padding: 12px; border-bottom: 1px solid var(--line-soft); }
+  .stocklist .nm { font-size: 16px; }
+  .stocklist .price { font-size: 16px; }
+  .stocklist .chg { font-size: 12px; }
+  .stocklist .listhead { padding: 10px 16px; }
+  .stocklist .sort-sel { min-height: 44px; font-size: 14px; }
+  .stocklist .mybtn { display: none; }
+  .chart-col { overflow-y: auto; overscroll-behavior: contain; }
+  .chart-col > .chart { flex: 0 0 auto; min-height: 420px; }
+  .chart:not(.chart-expanded) .name, .chart .code2 { display: none; }
+  .chart .now { margin-left: 0; font-size: 28px; }
+  .chart .top { flex-wrap: wrap; padding: 12px 16px; }
+  .chart-tools { margin-left: 0; flex-basis: 100%; }
+  .chart .fin { min-height: 44px; padding: 8px 10px; }
+  .mobile-chart-control { display: flex !important; }
+  .draw { flex-wrap: wrap; gap: 8px; padding: 0 16px 10px; }
+  .draw .grp { display: none; gap: 8px; }
+  .draw.drawing-open .grp { display: flex; flex-basis: 100%; order: 1; }
+  .draw .tf-wrap { flex-direction: column; align-items: flex-end; gap: 4px; }
+  .tf button { padding: 5px 9px; }
+  .chart .plot { flex: 1 0 260px; }
+  .chart .price-line { stroke-width: 2.5; }
+  .chart .axis { font-size: 12px; }
+  .modal:has(.chart-expanded) { width: 100%; height: calc(100dvh - 24px); max-width: 640px; }
+  .chart-expanded { border: 0; }
+  .chart-expanded .top { gap: 8px; }
+  .chart-expanded .name { flex-basis: 100%; }
+  .chart-expanded .chart-tools { display: none; }
+  .jd-heading span { display: none; }
+  .jd-tabs { gap: 8px; }
+  .jd-tab { padding: 7px 8px; font-size: 13px; flex-wrap: wrap; justify-content: center; }
+  .jd-toggle { flex: 0 0 44px; }
+  .jd-body { max-height: none; overflow: visible; padding: 14px 16px 20px; }
+  .jd-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .jd-foot { align-items: flex-start; }
+  .jd-note { line-height: 1.5; }
+  .app > .order { overflow-y: auto; overscroll-behavior: contain; }
+  .order .order-scroll { flex: 0 0 auto; overflow: visible; min-height: auto; }
+  .ordsec { padding: 16px; }
+  .ordsec .cap .avail { font-size: 12px; }
+  .ratios { gap: 8px; margin-bottom: 8px; }
+  .ratios button, .sav-ratio { height: 44px; }
+  .stepper { height: 52px; }
+  .stepper input, .sav-amt input { font-size: 16px; }
+  .sav-amt input { min-height: 48px; }
+  .est { font-size: 13px; margin: 12px 0; }
+  .order-feedback { margin-top: 12px; min-height: 38px; }
+  .order-feedback-note, .order-error, .order-receipt b { font-size: 13px; }
+  .order-receipt span, .order-error span { font-size: 12px; line-height: 1.5; }
+  .hold-row { min-height: 48px; }
+  .app > .chart.hedge { min-height: 0; }
+  .app.mobile-view-analysis > .chart.hedge { overflow-y: auto; }
+  .chart.hedge .payoff-plot { flex: 1 0 240px; }
+  .order .act-btn { min-height: 52px; }
+  .hedge-head { flex-wrap: wrap; line-height: 1.5; }
+  .hedge-legend { flex-wrap: wrap; gap: 8px; }
+  .sav-head { flex-wrap: wrap; }
+  .sav-sub, .sav-hint, .sav-rate-note, .holdings-empty, .sheet-hint { font-size: 13px; }
+
+  .student-mobile-nav {
+    flex: 0 0 auto;
+    display: flex;
+    gap: 8px;
+    padding: 6px 12px max(6px, env(safe-area-inset-bottom));
+    background: var(--panel);
+    border-top: 1px solid var(--line);
+  }
+  .student-mobile-nav button {
+    flex: 1;
+    min-width: 0;
+    min-height: 54px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    border: 0;
+    border-radius: var(--r-sm);
+    background: none;
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 700;
+  }
+  .student-mobile-nav button[aria-current] { color: var(--accent); background: var(--accent-soft); }
+  .student-mobile-nav svg { width: 22px; height: 22px; stroke: currentColor; stroke-width: 1.7; fill: none; }
+  .student-mobile-nav button:active { background: var(--panel-2); }
+  .student-mobile-nav.mobile-nav-detail { display: none; }
+  .mobile-order-actions {
+    display: flex;
+    flex: 0 0 auto;
+    gap: 8px;
+    padding: 12px 16px max(12px, env(safe-area-inset-bottom));
+    background: var(--panel);
+    border-top: 1px solid var(--line-soft);
+  }
+  .mobile-order-actions button {
+    flex: 1;
+    min-height: 52px;
+    border: 0;
+    border-radius: var(--r-md);
+    font-size: 16px;
+    font-weight: 800;
+  }
+  .mobile-order-actions .mobile-assets { flex: 0 0 64px; font-size: 13px; color: var(--muted); background: var(--panel-2); }
+  .mobile-order-actions .mobile-sell { background: var(--down-soft); color: var(--down); }
+  .mobile-order-actions .mobile-buy { background: var(--up); color: var(--ink); }
+  .mobile-order-actions button:disabled { opacity: 0.45; cursor: not-allowed; }
+  .mobile-order-actions button:active { transform: scale(0.98); }
+  .sk-grid { grid-template-columns: 1fr; }
+  .sk-grid .sk-col:not(:first-child) { display: none; }
+  .bankrupt-warn { font-size: 12px; text-align: left; line-height: 1.5; }
+
+  .dim { padding: 12px; padding-bottom: max(12px, env(safe-area-inset-bottom)); }
+  .modal, .modal.wide { min-width: 0; max-width: 640px; max-height: calc(100dvh - 24px); }
+  .mhead { flex: none; padding: 12px 16px; }
+  .mbody { min-height: 0; padding: 16px; overflow: auto; }
+  .mbody input:not([type='checkbox']):not([type='range']), .mbody select, .mbody textarea { font-size: 16px; }
+  .sumbar { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .sumbar .cell { padding: 12px; }
+  .tabs { flex-wrap: wrap; gap: 8px; }
+  .tabs button { min-height: 44px; }
+  .fs-tables { grid-template-columns: 1fr; }
+  .fs-tabs button { min-height: 44px; }
+  .toasts { bottom: calc(80px + env(safe-area-inset-bottom)); width: calc(100% - 24px); max-width: 520px; }
+  .toast { white-space: normal; overflow-wrap: anywhere; line-height: 1.5; }
+  .login { padding: 24px 20px; }
+  .login form { margin-top: 24px; }
+}
+@media (max-width: 374px) {
+  .student-header .hs-team { display: none; }
+  .jd-tab { gap: 3px; }
+  .jd-new { font-size: 11px; }
 }

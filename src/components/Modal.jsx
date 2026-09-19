@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react'
+import { createPortal } from 'react-dom'
 
 const FOCUSABLE =
   'button:not([disabled]), [href], input:not([disabled]), select, textarea, [tabindex]:not([tabindex="-1"])'
@@ -72,7 +73,7 @@ export default function Modal({ open, onClose, title, wide, children }) {
 
   if (!open) return null
 
-  return (
+  return createPortal(
     <div className="dim" onClick={onClose}>
       <div
         ref={boxRef}
@@ -90,6 +91,7 @@ export default function Modal({ open, onClose, title, wide, children }) {
         </div>
         <div className="mbody">{children}</div>
       </div>
-    </div>
+    </div>,
+    document.body,
   )
 }

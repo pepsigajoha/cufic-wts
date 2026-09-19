@@ -249,7 +249,7 @@ src/
     ModeTabs OptionOrderPanel PayoffDiagram VolatilitySmileModal   파생·헷지
     Header FinancialModal MarketModal HintModal RankingModal RoundModal FinalModal
     BroadcastModal EmergencyBroadcast Modal Toast QtyStepper RoundTimer ThemeToggle
-    DrawLayer RotateNotice MyModal Login
+    DrawLayer StudentWorkspace MyModal Login
   admin/              관리자 화면
     Admin.jsx         셸 + 4-그룹 탭 + 실시간 연결 상태 + FloatingRoundDock
     AdminHeader.jsx   상단 고정 상태바 (라운드·타이머·거래상태·입장 조 수·연결 인디케이터)

@@ -275,6 +275,7 @@ export default function AdminHints({ actions, game, stocks, teams, hints, refres
             {!preview.hasPool && (
               <p className="awarn">R{preview.round} 힌트가 아직 없어요. 먼저 힌트를 작성하세요.</p>
             )}
+            <div className="scroller">
             <table>
               <thead>
                 <tr>
@@ -308,6 +309,7 @@ export default function AdminHints({ actions, game, stocks, teams, hints, refres
                 ))}
               </tbody>
             </table>
+            </div>
           </>
         )}
       </section>

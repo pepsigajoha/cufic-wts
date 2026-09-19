@@ -1,8 +1,9 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useId, useMemo, useState } from 'react'
 import { num, pct, dirOf, arrowOf } from '../format'
 import { downsample, priceAxis, roundStepIndex, STEPS_PER_YEAR, TIMEFRAMES } from '../chart'
 import { useSize } from '../useSize'
 import DrawLayer from './DrawLayer'
+import Modal from './Modal'
 
 const PAD = { t: 18, r: 66, b: 18, l: 14 }
 
@@ -53,10 +54,38 @@ export default function Chart({
   roundYearMap,
   timerState,
   game,
+  expanded = false,
+  timeframe,
+  onTimeframeChange,
 }) {
   const [tool, setTool] = useState('cursor')
-  const [tfKey, setTfKey] = useState('W') // 초기 마운트 기본 주기 = 주봉
+  const [localTfKey, setLocalTfKey] = useState('W') // 초기 마운트 기본 주기 = 주봉
+  const tfKey = timeframe ?? localTfKey
+  const setTfKey = (key) => {
+    setLocalTfKey(key)
+    onTimeframeChange?.(key)
+  }
+  const [showLarge, setShowLarge] = useState(false)
+  const [showDrawing, setShowDrawing] = useState(false)
+  const fillId = useId()
   const [plotRef, { w, h }] = useSize()
+
+  useEffect(() => {
+    const syncLarge = () => setShowLarge(history.state?.cuficChartLarge === stock.code)
+    window.addEventListener('popstate', syncLarge)
+    return () => window.removeEventListener('popstate', syncLarge)
+  }, [stock.code])
+
+  const openLarge = () => {
+    if (history.state?.cuficChartLarge !== stock.code) {
+      history.pushState({ ...history.state, cuficChartLarge: stock.code }, '')
+    }
+    setShowLarge(true)
+  }
+  const closeLarge = () => {
+    setShowLarge(false)
+    if (history.state?.cuficChartLarge === stock.code) history.back()
+  }
 
   const dir = dirOf(stock.chg)
   const tf = TIMEFRAMES.find((t) => t.key === tfKey) ?? TIMEFRAMES[0]
@@ -116,7 +145,7 @@ export default function Chart({
   //  - waiting: 아직 안 그린다 — 완성된 그래프가 미리 보이는 스포일러 방지.
   const stepIdx = roundStepIndex(game, nowMs) // 0..251
   const revealFrac =
-    timerState === 'closed' ? 1 : timerState === 'live' ? (stepIdx + 1) / STEPS_PER_YEAR : 0
+    timerState === 'closed' ? 1 : timerState === 'live' || timerState === 'paused' ? (stepIdx + 1) / STEPS_PER_YEAR : 0
   const liveRevealCount =
     revealFrac <= 0 ? 0 : Math.min(livePath.length, Math.max(1, Math.ceil(revealFrac * livePath.length)))
   const revealedLive = livePath.slice(0, liveRevealCount)
@@ -187,7 +216,8 @@ export default function Chart({
   }, [revealedPath, tipY, x, y, h, ready])
 
   return (
-    <main className="chart">
+    <>
+    <main className={'chart' + (expanded ? ' chart-expanded' : '')}>
       <div className="top">
         <span className="name">{stock.name}</span>
         <span className="code2">{stock.market}</span>
@@ -212,7 +242,7 @@ export default function Chart({
               📈 시황
             </button>
           )}
-          <button className="fin" onClick={onOpenFinancial}>
+          {onOpenFinancial && <button className="fin" onClick={onOpenFinancial}>
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <path d="M3 3v18h18" />
               <rect x="7" y="10" width="3" height="7" />
@@ -220,12 +250,19 @@ export default function Chart({
               <rect x="17" y="13" width="3" height="4" />
             </svg>
             재무제표
-          </button>
+          </button>}
+          {!expanded && <button className="fin mobile-chart-control" onClick={openLarge}>
+            크게 보기
+          </button>}
         </div>
       </div>
 
-      <div className="draw">
-        <div className="grp">
+      <div className={'draw' + (showDrawing ? ' drawing-open' : '')}>
+        <button className="fin mobile-chart-control" aria-expanded={showDrawing} onClick={() => {
+          setShowDrawing(!showDrawing)
+          setTool('cursor')
+        }}>그리기</button>
+        <div className="grp" role="group" aria-label="그림판 도구">
           {TOOLS.map((t) => (
             <button
               key={t.key}
@@ -265,7 +302,7 @@ export default function Chart({
         {ready && !stock.halted && (
           <svg viewBox={`0 0 ${w} ${h}`}>
             <defs>
-              <linearGradient id="price-fill" x1="0" y1="0" x2="0" y2="1">
+              <linearGradient id={fillId} x1="0" y1="0" x2="0" y2="1">
                 <stop offset="0%" className="price-fill-stop-start" />
                 <stop offset="100%" className="price-fill-stop-end" />
               </linearGradient>
@@ -286,7 +323,7 @@ export default function Chart({
             {/* key={stock.code}: 종목을 바꿀 때만 다시 마운트돼 draw-on 애니메이션이 1회 재생된다.
                 (같은 종목의 장중 틱은 points만 갱신 → 애니메이션 재생 안 됨) */}
             {priceFillPath && (
-              <path key={stock.code + '-fill'} className="price-fill" d={priceFillPath} />
+              <path key={stock.code + '-fill'} className="price-fill" d={priceFillPath} style={{ fill: `url(#${fillId})` }} />
             )}
             <polyline
               key={stock.code + '-line'}
@@ -318,5 +355,11 @@ export default function Chart({
         )}
       </div>
     </main>
+    {!expanded && <Modal open={showLarge} onClose={closeLarge} title={`${stock.name} 차트 크게 보기`} wide>
+      <Chart stock={stock} strokes={strokes} onStrokesChange={onStrokesChange}
+        tradingOpen={tradingOpen} round={round} roundYearMap={roundYearMap}
+        timerState={timerState} game={game} expanded timeframe={tfKey} onTimeframeChange={setTfKey} />
+    </Modal>}
+    </>
   )
 }

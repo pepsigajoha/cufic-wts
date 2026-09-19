@@ -52,7 +52,7 @@ export default function PayoffDiagram({ stock, contract, premiumPerUnit, quantit
   const hasData = w > 0 && h > 0 && entrySpot > 0
 
   return (
-    <main className="col chart hedge" ref={wrapRef}>
+    <main className="col chart hedge">
       <div className="hedge-head">
         <span className="hnm">{stock ? stock.name : '종목을 선택하세요'}</span>
         {contract && (
@@ -63,6 +63,7 @@ export default function PayoffDiagram({ stock, contract, premiumPerUnit, quantit
         )}
       </div>
 
+      <div className="payoff-plot" ref={wrapRef}>
       {hasData ? (
         <svg width={w} height={h} className="payoff-svg" role="img" aria-label="보호적 풋 헷지 손익 다이어그램">
           <line x1={PAD.l} y1={zeroY} x2={w - PAD.r} y2={zeroY} className="payoff-axis-zero" />
@@ -87,6 +88,7 @@ export default function PayoffDiagram({ stock, contract, premiumPerUnit, quantit
       ) : (
         <div className="payoff-empty">종목과 옵션 계약을 선택하면 손익 곡선이 그려져요.</div>
       )}
+      </div>
 
       <div className="hedge-legend">
         <span className="lg unhedged">

@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeAll, afterEach } from 'vitest'
-import { render, cleanup } from '@testing-library/react'
+import { render, cleanup, fireEvent, screen, within, waitFor } from '@testing-library/react'
 import Chart from './Chart'
+import { useStudentNavigation } from '../useStudentNavigation'
 
 // gameData.js가 정적 import하는 ../supabase는 실제 클라이언트를 만든다 — 여기선 안 쓴다.
 vi.mock('../supabase', () => ({ supabase: {}, rpc: vi.fn(), select: vi.fn() }))
@@ -21,6 +22,7 @@ beforeAll(() => {
 afterEach(() => {
   cleanup()
   vi.useRealTimers()
+  vi.unstubAllGlobals()
 })
 
 const roundYearMap = { 1: 2020, 2: 2021, 3: 2022 }
@@ -111,6 +113,18 @@ describe('Chart — 진행률(스텝 인덱스)만큼만 실시간 경로를 드
     expect(mid).toBeLessThan(late)
   })
 
+  it('paused: 일시정지 순간까지 공개된 경로를 그대로 유지한다', () => {
+    const live = linePoints(renderAt('2026-08-30T00:05:00Z', 'live')).length
+    cleanup()
+    const pausedGame = { ...GAME, round_paused_at: '2026-08-30T00:05:00Z' }
+    at('2026-08-30T00:09:00Z')
+    const paused = linePoints(render(
+      <Chart stock={baseStock} round={3} roundYearMap={roundYearMap} timerState="paused"
+        tradingOpen={false} game={pausedGame} strokes={[]} onStrokesChange={() => {}} />,
+    ).container).length
+    expect(paused).toBe(live)
+  })
+
   it('closed: 지금 라운드 경로가 끝까지 드러나고, 마지막 점 = 연말가에 대응한다', () => {
     const c = renderAt('2026-08-30T00:20:00Z', 'closed')
     // 마지막 그려진 점의 y가 플롯 상단쪽(값이 큼 = 우상향 종목)
@@ -156,5 +170,56 @@ describe('Chart — 이상값/정보 부족에도 죽지 않는다', () => {
       <Chart stock={holed} round={3} roundYearMap={roundYearMap} timerState="closed" tradingOpen game={GAME} strokes={[]} onStrokesChange={() => {}} />,
     )
     expect(noNaN(container)).toBe(true)
+  })
+})
+
+describe('Chart — 모바일 크게 보기', () => {
+  it('현재 공개된 경로와 메모를 유지하고 기간 변경을 원래 차트에 반영한다', () => {
+    at('2026-08-30T00:05:00Z')
+    const strokes = [{ id: 'memo', points: [[0.2, 0.3], [0.7, 0.6]] }]
+    const { container } = render(
+      <Chart stock={baseStock} round={3} roundYearMap={roundYearMap} timerState="live"
+        tradingOpen game={GAME} strokes={strokes} onStrokesChange={() => {}} />,
+    )
+    const originalPoints = linePoints(container)
+    const open = screen.getByRole('button', { name: '크게 보기' })
+    open.focus()
+    fireEvent.click(open)
+    const dialog = screen.getByRole('dialog', { name: '테스트전자 차트 크게 보기' })
+    expect(linePoints(dialog)).toEqual(originalPoints)
+    expect(dialog.querySelector('.stroke').getAttribute('points'))
+      .toBe(container.querySelector('.stroke').getAttribute('points'))
+    const gradientIds = [...document.querySelectorAll('linearGradient')].map((el) => el.id)
+    expect(new Set(gradientIds).size).toBe(2)
+    fireEvent.click(within(dialog).getByRole('button', { name: '일', exact: true }))
+    fireEvent.click(within(dialog).getByRole('button', { name: '닫기' }))
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(screen.getByRole('button', { name: '일', exact: true }).getAttribute('aria-pressed')).toBe('true')
+    expect(document.activeElement).toBe(open)
+    fireEvent.click(open)
+    history.replaceState({ ...history.state, cuficChartLarge: null }, '')
+    fireEvent(window, new PopStateEvent('popstate'))
+    expect(screen.queryByRole('dialog')).toBeNull()
+  })
+
+  it('휴대폰 뒤로가기는 확대창만 닫고 종목 상세에 머문다', async () => {
+    vi.stubGlobal('matchMedia', () => ({ matches: true }))
+    history.replaceState({}, '')
+    function PhoneChart() {
+      const { view, setView } = useStudentNavigation()
+      return view === 'stocks' ? <button onClick={() => setView('analysis')}>종목 열기</button> : <>
+        <span>종목 상세</span>
+        <Chart stock={baseStock} round={3} roundYearMap={roundYearMap} timerState="closed"
+          tradingOpen={false} game={GAME} strokes={[]} onStrokesChange={() => {}} />
+      </>
+    }
+    render(<PhoneChart />)
+    fireEvent.click(screen.getByRole('button', { name: '종목 열기' }))
+    await screen.findByText('종목 상세')
+    fireEvent.click(screen.getByRole('button', { name: '크게 보기' }))
+    expect(screen.getByRole('dialog')).toBeInTheDocument()
+    history.back()
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
+    expect(screen.getByText('종목 상세')).toBeInTheDocument()
   })
 })

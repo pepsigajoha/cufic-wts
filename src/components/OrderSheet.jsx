@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { num, signed, pct, dirOf } from '../format'
 import { positionPnl } from '../account'
 import QtyStepper, { QtyRatios } from './QtyStepper'
@@ -34,19 +34,24 @@ export default function OrderSheet({
   hasTraded,
   onNotify,
   flatPricing = false, // 종가 단일가 체결 모드 — 장중 어느 때 주문해도 그 해 종가로 체결
+  side: controlledSide,
+  onSideChange,
 }) {
   // 증권사 주문창처럼 [매수 | 매도] 토글 하나로 전환한다. 수량은 이 종목·이 방향에 한정된 임시값 —
   // App이 key={종목코드}로 리마운트하므로 종목을 바꾸면 0으로 초기화되고, 방향을 바꿔도 0으로 되돌린다.
-  const [side, setSide] = useState('buy')
+  const [localSide, setSide] = useState('buy')
+  const side = controlledSide ?? localSide
   const [qty, setQty] = useState(0)
   const [confirm, setConfirm] = useState(false)
   const [orderError, setOrderError] = useState('')
   const [receipt, setReceipt] = useState(null)
   const isBuy = side === 'buy'
   const pos = positionPnl(stock)
+  useEffect(() => { setQty(0); setOrderError(''); setReceipt(null); setConfirm(false) }, [side])
 
   const pickSide = (s) => {
     setSide(s)
+    onSideChange?.(s)
     setQty(0)
     setOrderError('')
   }

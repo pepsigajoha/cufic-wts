@@ -89,7 +89,7 @@ export default function Header({
   const roundSub = ended || round.round >= 1 ? `${round.year}년` : '대기 중'
 
   return (
-    <header>
+    <header className="student-header">
       <div className="logo">
         <span className="brand-logo" role="img" aria-label="CUFIC WTS" />
       </div>
@@ -170,8 +170,9 @@ export default function Header({
 
       <div className="hbtns">
         <ThemeToggle theme={theme} onToggle={onToggleTheme} />
-        <button className="text-btn" onClick={onLogout}>
-          로그아웃
+        <button className="text-btn logout-btn" onClick={onLogout} aria-label="로그아웃">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 4H4v16h5M12 12h9m-4-4 4 4-4 4" /></svg>
+          <span>로그아웃</span>
         </button>
       </div>
     </header>

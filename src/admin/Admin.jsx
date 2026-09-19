@@ -17,37 +17,7 @@ import AdminDatasets from './AdminDatasets'
 import AdminBoard from './AdminBoard'
 import AdminSystem from './AdminSystem'
 import FloatingRoundDock from './FloatingRoundDock'
-
-// 관리자는 두 가지 일을 한다: 대회 전 콘텐츠 만들기(준비) / 대회 중 프로젝터 앞에서 굴리기(운영).
-// 내비도 그 둘로 나눈다 — 운영 진입점 2개는 라벨 없이 크게, 나머지는 그룹으로.
-const TAB_GROUPS = [
-  {
-    label: null, // 운영 진입점 — 크게, 상단에
-    tabs: [
-      { key: 'progress', label: '운영 콘솔' },
-      { key: 'board', label: '리더보드' },
-    ],
-  },
-  {
-    label: '준비',
-    tabs: [
-      { key: 'datasets', label: '데이터셋' },
-      { key: 'stocks', label: '종목·가격' },
-      { key: 'content', label: '재무·시황' },
-      { key: 'hints', label: '힌트' },
-      { key: 'options', label: '파생·옵션' },
-      { key: 'simulator', label: '주가 생성기' },
-      { key: 'teams', label: '조 관리' },
-    ],
-  },
-  {
-    label: '검토·설정',
-    tabs: [
-      { key: 'analytics', label: '통계' },
-      { key: 'system', label: '시스템' },
-    ],
-  },
-]
+import AdminNavigation from './AdminNavigation'
 
 // 탭 상단 한 줄 도움말
 const TAB_HELP = {
@@ -332,27 +302,9 @@ export default function Admin({ theme, onToggleTheme }) {
       />
 
       <div className="admin-body">
-        <nav className="admin-tabs">
-          {TAB_GROUPS.map((g) => (
-            <div
-              key={g.label ?? 'primary'}
-              className={'tab-group' + (g.label ? '' : ' tab-group--primary')}
-            >
-              {g.label && <span className="tab-group-label">{g.label}</span>}
-              {g.tabs.map((t) => (
-                <button
-                  key={t.key}
-                  className={tab === t.key ? 'on' : ''}
-                  onClick={() => setTab(t.key)}
-                >
-                  {t.label}
-                </button>
-              ))}
-            </div>
-          ))}
-        </nav>
+        <AdminNavigation tab={tab} onChange={setTab} />
 
-        <main className="admin-main">
+        <main className="admin-main" key={tab}>
           {TAB_HELP[tab] && <p className="tab-help">{TAB_HELP[tab]}</p>}
           {!game ? (
             <div className="apanel" aria-busy="true" aria-label="불러오는 중">

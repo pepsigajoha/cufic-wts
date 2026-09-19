@@ -23,12 +23,16 @@ export default function AdminHeader({ theme, onToggleTheme, game, teams = [], co
   // round_ends_at이 없거나 파싱 불가(NaN)면 타이머를 그리지 않는다 — NaN이 TimerPill로 새지 않게.
   const parsedEndsAt = game?.round_ends_at ? new Date(game.round_ends_at).getTime() : NaN
   const endsAt = Number.isFinite(parsedEndsAt) ? parsedEndsAt : null
-  const remainMs = endsAt ? Math.max(0, endsAt - nowTs) : 0
+  const parsedPausedAt = game?.round_paused_at ? new Date(game.round_paused_at).getTime() : NaN
+  const pausedAt = Number.isFinite(parsedPausedAt) ? parsedPausedAt : null
+  const remainMs = endsAt ? Math.max(0, endsAt - (pausedAt ?? nowTs)) : 0
   const rawDurSec = Number(game?.round_duration_seconds)
   const durMs = (Number.isFinite(rawDurSec) && rawDurSec > 0 ? rawDurSec : 600) * 1000
   const timerState =
     round > 0 && !ended
-      ? remainMs > 0 && !game?.is_locked
+      ? pausedAt != null
+        ? 'paused'
+        : remainMs > 0 && !game?.is_locked
         ? 'live'
         : endsAt
           ? 'closed'
@@ -41,7 +45,7 @@ export default function AdminHeader({ theme, onToggleTheme, game, teams = [], co
       ? '시작 전 · 대기 중'
       : `ROUND ${round}${total ? ` / ${total}` : ''} · ${game?.round_year_map?.[String(round)] ?? '—'}년`
 
-  const tradeText = { live: '거래 열림', closed: '거래 마감', waiting: '타이머 대기' }[timerState]
+  const tradeText = { live: '거래 열림', paused: '일시정지', closed: '거래 마감', waiting: '타이머 대기' }[timerState]
   const connLabel = connected == null ? '연결 중' : connected ? '실시간' : '끊김'
 
   return (
@@ -74,8 +78,9 @@ export default function AdminHeader({ theme, onToggleTheme, game, teams = [], co
 
       <div className="hbtns">
         <ThemeToggle theme={theme} onToggle={onToggleTheme} />
-        <button className="text-btn" onClick={onLogout}>
-          로그아웃
+        <button className="text-btn logout-btn" onClick={onLogout} aria-label="로그아웃">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 4H4v16h5M12 12h9m-4-4 4 4-4 4" /></svg>
+          <span>로그아웃</span>
         </button>
       </div>
     </header>

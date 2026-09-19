@@ -153,13 +153,15 @@ export default function FloatingRoundDock({ game, stocks, actions, notify, refre
         type="button"
         className="sim-dock-toggle"
         onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+        aria-controls="quick-round-panel"
         aria-label={open ? '빠른 진행 패널 닫기' : '빠른 진행 패널 열기'}
       >
         {open ? '✕' : `R${round}${total ? `/${total}` : ''}`}
       </button>
 
       {open && (
-        <div className="sim-dock-panel">
+        <div className="sim-dock-panel" id="quick-round-panel">
           <div className="sim-dock-badge">
             {roundLabel}
             {paused && !ended && <div className="sim-dock-timer">⏸ 일시정지 · {fmtRemain(remainMs)} 남음</div>}

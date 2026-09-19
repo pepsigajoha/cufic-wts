@@ -268,7 +268,7 @@ export default function AdminProgress({
       ? { label: '대회 종료', msg: '마지막 라운드예요', run: () => setConfirm('end'), tone: 'danger' }
       : {
           label: '다음 연도로',
-          msg: `거래 중이에요 (${mmss(remainingMs)} 남음) — 마감을 기다리거나 지금 넘길 수 있어요`,
+          msg: paused ? `일시정지 중이에요 (${mmss(remainingMs)} 남음)` : `거래 중이에요 (${mmss(remainingMs)} 남음) — 마감을 기다리거나 지금 넘길 수 있어요`,
           run: () => setConfirm('advance'),
           tone: 'ghost',
         }

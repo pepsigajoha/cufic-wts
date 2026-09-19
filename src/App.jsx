@@ -17,7 +17,8 @@ import {
 import { errorText, rpc } from './supabase'
 
 import Login from './components/Login'
-import RotateNotice from './components/RotateNotice'
+import StudentWorkspace from './components/StudentWorkspace'
+import { useStudentNavigation } from './useStudentNavigation'
 import Header from './components/Header'
 import TradeStatusStrip from './components/TradeStatusStrip'
 import StockList from './components/StockList'
@@ -84,7 +85,8 @@ function Student({ theme, onToggleTheme }) {
   const [drawings, setDrawings] = useState({})
 
   // 파생·헷지·예금 — 주식 매매(spot)와 화면을 전환한다. 서버 데이터가 아니라 순수 화면 상태다.
-  const [mode, setMode] = useState('spot') // 'spot' | 'hedge' | 'savings'
+  const { mode, setMode, view: mobileView, setView: setMobileView } = useStudentNavigation()
+  const [orderSide, setOrderSide] = useState('buy')
   const [optionsContracts, setOptionsContracts] = useState([])
   const [myOptionPositions, setMyOptionPositions] = useState([])
   const [savings, setSavings] = useState([]) // 활성 예금 (user_savings)
@@ -575,7 +577,6 @@ function Student({ theme, onToggleTheme }) {
   if (booting) {
     return (
       <>
-        <RotateNotice />
         <div className="boot">
           <div className="spinner" />
           <p>불러오는 중…</p>
@@ -587,7 +588,6 @@ function Student({ theme, onToggleTheme }) {
   if (!team) {
     return (
       <>
-        <RotateNotice />
         <Login
           mode={joinMode}
           onSubmit={handleLogin}
@@ -603,7 +603,6 @@ function Student({ theme, onToggleTheme }) {
   if (loadError) {
     return (
       <>
-        <RotateNotice />
         <div className="boot">
           <p className="boot-err">{errorText(loadError)}</p>
           <button className="act-btn buy" onClick={() => load(team)} style={{ maxWidth: 200 }}>
@@ -618,7 +617,6 @@ function Student({ theme, onToggleTheme }) {
     // 3열 레이아웃 모양대로 스켈레톤 — 데이터가 오면 자리가 안 튄다
     return (
       <>
-        <RotateNotice />
         <div className="sk-app" aria-busy="true" aria-label="대회 정보를 불러오는 중">
           <div className="sk-header skeleton" />
           <div className="sk-strip skeleton" />
@@ -648,7 +646,6 @@ function Student({ theme, onToggleTheme }) {
 
   return (
     <>
-      <RotateNotice />
       <Header
         account={acct}
         team={team.name || team.code}
@@ -674,7 +671,10 @@ function Student({ theme, onToggleTheme }) {
       <TradeStatusStrip state={stripState}>
         <ModeTabs
           mode={mode}
-          onChange={setMode}
+          onChange={(nextMode) => {
+            setMode(nextMode)
+            setMobileView(nextMode === 'savings' ? 'order' : 'analysis')
+          }}
           showOptions={game.enable_options !== false}
           showSavings={game.enable_savings !== false}
         />
@@ -695,11 +695,20 @@ function Student({ theme, onToggleTheme }) {
         </div>
       )}
 
-      <div className="app">
+      <StudentWorkspace
+        view={mobileView}
+        onViewChange={setMobileView}
+        mode={mode}
+        stock={selected}
+        cash={cash}
+        onOpenMy={() => setMyOpen(true)}
+        onOrderSide={setOrderSide}
+        tradingOpen={tradingOpen}
+      >
         <StockList
           stocks={stocks}
           selectedCode={selected.code}
-          onSelect={setSelectedCode}
+          onSelect={(code) => { setSelectedCode(code); setMobileView('analysis') }}
           onOpenMy={() => setMyOpen(true)}
           tradingOpen={tradingOpen}
           stepIndex={liveStep}
@@ -732,13 +741,15 @@ function Student({ theme, onToggleTheme }) {
             </div>
             <OrderSheet
               key={selected.code}
+              side={orderSide}
+              onSideChange={setOrderSide}
               stock={selected}
               execPrice={selExecPrice}
               stepIndex={liveStep}
               stocks={stocks}
               cash={cash}
               onOrder={placeOrder}
-              onSelectStock={setSelectedCode}
+              onSelectStock={(code) => { setSelectedCode(code); setMobileView('analysis') }}
               placing={placing}
               tradingOpen={tradingOpen}
               started={started}
@@ -788,7 +799,7 @@ function Student({ theme, onToggleTheme }) {
             />
           </>
         )}
-      </div>
+      </StudentWorkspace>
 
       <MyModal
         open={myOpen}
@@ -819,7 +830,7 @@ function Student({ theme, onToggleTheme }) {
         onClose={() => setHintsOpen(false)}
         hints={hints}
         stocks={stocks}
-        onSelectStock={setSelectedCode}
+        onSelectStock={(code) => { setSelectedCode(code); setMobileView('analysis') }}
       />
       <BroadcastModal
         open={bcOpen}

@@ -19,9 +19,15 @@ const WEEK_STEPS = 5
 
 export default function StockList({ stocks, selectedCode, onSelect, onOpenMy, tradingOpen, stepIndex = 251 }) {
   const [sort, setSort] = useState('default')
+  const [query, setQuery] = useState('')
+  const [heldOnly, setHeldOnly] = useState(false)
 
   // 상장 예정(preListed) 종목은 아직 목록에 없다 — 상장 라운드에 나타난다
-  const rows = stocks.filter((s) => !s.preListed)
+  const term = query.trim().toLocaleLowerCase('ko')
+  const rows = stocks.filter((s) =>
+    !s.preListed && (!heldOnly || s.holding > 0) &&
+    (!term || s.name.toLocaleLowerCase('ko').includes(term) || s.code.toLowerCase().includes(term)),
+  )
   if (sort === 'name') rows.sort((a, b) => a.name.localeCompare(b.name, 'ko'))
   else if (sort === 'price_desc') rows.sort((a, b) => b.price - a.price)
   else if (sort === 'price_asc') rows.sort((a, b) => a.price - b.price)
@@ -39,6 +45,13 @@ export default function StockList({ stocks, selectedCode, onSelect, onOpenMy, tr
 
   return (
     <aside className="col stocklist">
+      <div className="stock-find">
+        <input type="search" aria-label="종목 검색" placeholder="어떤 주식을 찾으세요?" value={query} onChange={(e) => setQuery(e.target.value)} />
+        <div className="stock-filters" role="group" aria-label="종목 범위">
+          <button type="button" aria-pressed={!heldOnly} onClick={() => setHeldOnly(false)}>전체 종목</button>
+          <button type="button" aria-pressed={heldOnly} onClick={() => setHeldOnly(true)}>내 보유종목</button>
+        </div>
+      </div>
       <div className="listhead">
         <span className="lh-nm">종목</span>
         <span className="lh-basis">{basisLabel}</span>
@@ -57,6 +70,7 @@ export default function StockList({ stocks, selectedCode, onSelect, onOpenMy, tr
       </div>
 
       <div className="rows">
+        {rows.length === 0 && <p className="stock-empty">{term ? '검색한 종목이 없어요. 이름을 다시 확인해 주세요.' : '아직 보유한 주식이 없어요.'}</p>}
         {rows.map((s) => {
           const live = tradingOpen && !s.halted
           // 현재 장중 체결가(OrderSheet·차트 팁과 같은 값) + 1주(5스텝) 전 기준가

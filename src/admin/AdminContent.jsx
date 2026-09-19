@@ -30,16 +30,18 @@ function MacroRow({ year, row, onSave, busy }) {
       <div className="content-row macro">
         <span className="cr-year">{year}년</span>
         {MACRO_METRICS.map((m) => (
-          <input
-            key={m.key}
-            className="cr-num num"
-            type="number"
-            step="any"
-            value={d[m.key]}
-            onChange={(e) => set(m.key, e.target.value)}
-            title={`${m.label} (${m.unit})`}
-            placeholder={m.unit}
-          />
+          <label className="cr-field" key={m.key}>
+            <span className="cr-label">{m.label} ({m.unit})</span>
+            <input
+              className="cr-num num"
+              type="number"
+              step="any"
+              value={d[m.key]}
+              onChange={(e) => set(m.key, e.target.value)}
+              aria-label={`${year}년 ${m.label} (${m.unit})`}
+              placeholder={m.unit}
+            />
+          </label>
         ))}
         <button className="act-btn prime sm" disabled={busy} onClick={() => onSave(year, d)}>
           저장
@@ -48,6 +50,7 @@ function MacroRow({ year, row, onSave, busy }) {
       {/* 한 줄 시황 — 전용 행(전체 폭) */}
       <input
         className="cr-summary-full"
+        aria-label={`${year}년 한 줄 시황`}
         value={d.summary}
         onChange={(e) => set('summary', e.target.value)}
         placeholder={`${year}년 한 줄 시황 (예: 인플레이션 급등, 금리 인상 시작)`}
@@ -66,16 +69,18 @@ function FinRow({ stockId, year, row, onSave, onDelete, busy }) {
     <div className="content-row fin">
       <span className="cr-year">{year}년</span>
       {FIN_INPUTS.map((m) => (
-        <input
-          key={m.key}
-          className="cr-num num"
-          type="number"
-          step="any"
-          value={d[m.key]}
-          onChange={(e) => set(m.key, e.target.value)}
-          title={`${m.label} (${m.unit})`}
-          placeholder={m.unit}
-        />
+        <label className="cr-field" key={m.key}>
+          <span className="cr-label">{m.label} ({m.unit})</span>
+          <input
+            className="cr-num num"
+            type="number"
+            step="any"
+            value={d[m.key]}
+            onChange={(e) => set(m.key, e.target.value)}
+            aria-label={`${year}년 ${m.label} (${m.unit})`}
+            placeholder={m.unit}
+          />
+        </label>
       ))}
       <span className="cr-calc num" title="입력값으로 자동 계산 (저장 안 됨)">
         자본 {num(c.equity)} · 순익 {num(c.netIncome)} · 부채{c.debtRatio == null ? '—' : Math.round(c.debtRatio) + '%'} · ROE {c.roe == null ? '—' : Math.round(c.roe) + '%'}
@@ -170,7 +175,7 @@ export default function AdminContent({ actions, game, stocks, financials, macro,
       {/* ── 시황 */}
       <section className="acard">
         <span className="acap">시황 (거시경제) · 연도별</span>
-        <div className="content-table">
+        <div className="content-table" style={{ '--macro-cols': MACRO_METRICS.length }}>
           <div className="content-head macro">
             <span className="cr-year">연도</span>
             {MACRO_METRICS.map((m) => (
