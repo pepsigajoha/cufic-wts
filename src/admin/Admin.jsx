@@ -247,22 +247,56 @@ export default function Admin({ theme, onToggleTheme }) {
 
   if (!authed) {
     return (
-      <div className="login">
+      <div className="login student-login admin-login">
         <ThemeToggle theme={theme} onToggle={onToggleTheme} className="theme-fab" />
-        <div className="card">
-          <span className="brand-logo" role="img" aria-label="CUFIC WTS" />
-          <h1>관리자</h1>
-          <p className="sub2">CUFIC WTS · 대회 운영</p>
+
+        <main className="student-login-shell">
+          <section className="student-login-hero" aria-labelledby="admin-login-title">
+            <div className="student-brand">
+              <span className="brand-logo" role="img" aria-label="CUFIC WTS" />
+              <span>
+                <b>CUFIC WTS</b>
+                <small>대회 운영 센터</small>
+              </span>
+            </div>
+            <div className="student-login-copy">
+              <p>강사를 위한 운영 화면</p>
+              <h1 id="admin-login-title">수업의 흐름을 한눈에<br />안전하게 운영하세요.</h1>
+              <span>참가자와 라운드, 콘텐츠와 결과를 한곳에서 관리할 수 있어요.</span>
+            </div>
+            <ol className="login-route" aria-label="대회 운영 순서">
+              <li>수업 준비</li>
+              <li>라운드 진행</li>
+              <li>결과 확인</li>
+            </ol>
+          </section>
+
+          <section className="student-login-card" aria-label="관리자 로그인">
+            <span className="student-login-badge">관리자 전용</span>
+            <h2>관리자 로그인</h2>
+            <p className="student-login-guide" id="admin-login-guide">설정한 관리자 비밀번호를 입력해 주세요.</p>
           <form onSubmit={doLogin}>
             <div className="field">
               <label htmlFor="secret">관리자 비밀번호</label>
-              <input id="secret" name="secret" type="password" autoFocus autoComplete="off" />
+                <input
+                  id="secret"
+                  name="secret"
+                  type="password"
+                  autoFocus
+                  autoComplete="off"
+                  enterKeyHint="go"
+                  aria-describedby="admin-login-guide"
+                  placeholder="비밀번호 입력"
+                />
             </div>
             <button type="submit" className="go">
-              들어가기
+                관리 화면 열기
             </button>
           </form>
-        </div>
+            <p className="hint">비밀번호는 현재 브라우저 탭에서만 유지됩니다.</p>
+            <a className="student-admin-link" href="/">학생 입장 화면</a>
+          </section>
+        </main>
         <Toasts toasts={toasts} onDismiss={dismissToast} />
       </div>
     )

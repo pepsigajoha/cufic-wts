@@ -3595,6 +3595,33 @@ td {
   text-decoration: underline;
   text-underline-offset: 3px;
 }
+.admin-login {
+  background:
+    radial-gradient(circle at 12% 18%, color-mix(in srgb, var(--down) 12%, transparent), transparent 30%),
+    radial-gradient(circle at 88% 86%, color-mix(in srgb, var(--gold) 10%, transparent), transparent 28%),
+    var(--bg);
+}
+.admin-login .student-login-copy > p {
+  color: var(--down);
+}
+.admin-login .student-login-badge {
+  background: var(--down-soft);
+  color: var(--down);
+}
+.admin-login.login .go,
+.admin-login.login .go:hover {
+  background: var(--down);
+  color: var(--ink);
+  box-shadow: 0 8px 22px color-mix(in srgb, var(--down) 20%, transparent);
+}
+.admin-login.login input {
+  font-family: var(--sans);
+  letter-spacing: 0;
+}
+.admin-login.login input:focus {
+  border-color: var(--down);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--down) 18%, transparent);
+}
 
 @media (max-width: 760px) {
   .student-login {
