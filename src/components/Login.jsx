@@ -40,13 +40,36 @@ export default function Login({ mode = 'code', onSubmit, onJoin, onCommit, theme
   }
 
   return (
-    <div className="login">
+    <div className="login student-login">
       <ThemeToggle theme={theme} onToggle={onToggleTheme} className="theme-fab" />
 
-      <div className="card">
-        <span className="brand-logo" role="img" aria-label="CUFIC WTS" />
-        <h1>CUFIC WTS</h1>
-        <p className="sub2">스마트 주식 교실 · 모의투자 시스템</p>
+      <main className="student-login-shell">
+        <section className="student-login-hero" aria-labelledby="student-login-title">
+          <div className="student-brand">
+            <span className="brand-logo" role="img" aria-label="CUFIC WTS" />
+            <span>
+              <b>CUFIC WTS</b>
+              <small>청소년 모의투자</small>
+            </span>
+          </div>
+          <div className="student-login-copy">
+            <p>교실에서 만나는 주식시장</p>
+            <h1 id="student-login-title">시장 흐름을 읽고<br />우리 조의 전략을 세워보세요.</h1>
+            <span>뉴스와 재무정보를 살피고, 라운드마다 투자 전략을 세워보세요.</span>
+          </div>
+          <ol className="login-route" aria-label="게임 진행 순서">
+            <li>뉴스 읽기</li>
+            <li>기업 비교</li>
+            <li>우리 조 투자</li>
+          </ol>
+        </section>
+
+        <section className="student-login-card" aria-label="학생 입장">
+          <span className="student-login-badge">학생 입장</span>
+          <h2>{open ? '조 이름과 PIN을 입력하세요' : '참가 코드를 입력하세요'}</h2>
+          <p className="student-login-guide">
+            {open ? '선생님이 알려준 정보로 바로 시작할 수 있어요.' : '선생님에게 받은 조별 코드를 입력해 주세요.'}
+          </p>
 
         {/* ── 코드 방식 ── */}
         {!open && (
@@ -65,14 +88,15 @@ export default function Login({ mode = 'code', onSubmit, onJoin, onCommit, theme
                   autoFocus
                   autoComplete="off"
                   spellCheck="false"
+                  enterKeyHint="go"
                 />
               </div>
-              <div className="err">{error}</div>
+              <div className="err" role="alert" aria-live="polite">{error}</div>
               <button type="submit" className="go" disabled={busy}>
                 {busy ? '확인 중…' : '입장하기'}
               </button>
             </form>
-            <p className="hint">참가 코드는 강사 선생님에게 받으세요</p>
+            <p className="hint">영문과 숫자, 하이픈까지 받은 그대로 입력해 주세요.</p>
           </>
         )}
 
@@ -94,6 +118,7 @@ export default function Login({ mode = 'code', onSubmit, onJoin, onCommit, theme
                   autoFocus
                   autoComplete="off"
                   spellCheck="false"
+                  enterKeyHint="next"
                 />
               </div>
               <div className="field">
@@ -108,9 +133,10 @@ export default function Login({ mode = 'code', onSubmit, onJoin, onCommit, theme
                   placeholder="0000"
                   inputMode="numeric"
                   autoComplete="off"
+                  enterKeyHint="go"
                 />
               </div>
-              <div className="err">{error}</div>
+              <div className="err" role="alert" aria-live="polite">{error}</div>
               <button
                 type="submit"
                 className="go"
@@ -124,7 +150,9 @@ export default function Login({ mode = 'code', onSubmit, onJoin, onCommit, theme
             </p>
           </>
         )}
-      </div>
+          <a className="student-admin-link" href="?admin=1">강사용 관리자 화면</a>
+        </section>
+      </main>
     </div>
   )
 }
